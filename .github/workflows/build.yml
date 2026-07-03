@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22' # Updated to suppress Node 20 deprecation notices
 
       - name: Get pnpm store directory
         shell: bash
@@ -68,6 +68,13 @@ jobs:
         run: |
           echo "✓ macOS build will use Metal GPU acceleration (enabled by default)"
           echo "✓ CoreML acceleration available for Apple Silicon"
+
+      # 🎯 FIX INJECTED HERE: Switch the active tools context to the full Xcode IDE app bundle
+      - name: Set up full Xcode Version
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
+          echo "Selecting full Xcode installation suite found at: $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
 
       - name: Build llama-helper sidecar (macOS)
         shell: bash
