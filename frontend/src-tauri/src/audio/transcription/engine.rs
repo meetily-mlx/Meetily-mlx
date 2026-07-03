@@ -2,7 +2,7 @@
 //
 // TranscriptionEngine enum and model initialization/validation logic.
 
-use super::provider::TranscriptionProvider;
+use super::provider::{Qwen3RemoteProvider, TranscriptionProvider};
 use log::{info, warn};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
@@ -51,9 +51,9 @@ impl TranscriptionEngine {
 // MODEL VALIDATION AND INITIALIZATION
 // ============================================================================
 
-/// Validate that transcription models (Whisper or Parakeet) are ready before starting recording
+/// Validate that transcription models are ready before starting recording
 pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    // Check transcript configuration to determine which engine to validate
+    // Get provider configuration
     let config = match crate::api::api::api_get_transcript_config(
         app.clone(),
         app.clone().state(),
@@ -86,7 +86,13 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         }
     };
 
-    // Validate based on provider
+    // ✅ NEW: If qwen3 is selected, bypass validation (server handles it)
+    if config.provider == "qwen3" {
+        info!("🚀 Qwen3 selected - skipping local model validation");
+        return Ok(());
+    }
+
+    // Validate based on provider (original logic)
     match config.provider.as_str() {
         "localWhisper" => {
             info!("🔍 Validating Whisper model...");
@@ -123,7 +129,6 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
             }
 
             // Use the validation command that includes auto-discovery and loading
-            // This matches the Whisper behavior for consistency
             match crate::parakeet_engine::commands::parakeet_validate_model_ready_with_config(app).await {
                 Ok(model_name) => {
                     info!("✅ Parakeet model validation successful: {} is ready", model_name);
@@ -135,10 +140,15 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 }
             }
         }
+        "qwen3" => {
+            // This is already handled above, but keep as fallback
+            info!("🚀 Qwen3 selected - skipping local model validation");
+            Ok(())
+        }
         other => {
             warn!("❌ Unsupported transcription provider for local recording: {}", other);
             Err(format!(
-                "Provider '{}' is not supported for local transcription. Please select 'localWhisper' or 'parakeet'.",
+                "Provider '{}' is not supported for local transcription. Please select 'localWhisper', 'parakeet', or 'qwen3'.",
                 other
             ))
         }
@@ -182,7 +192,17 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         }
     };
 
-    // Initialize the appropriate engine based on provider
+    // ✅ NEW: Check if user selected qwen3
+    if config.provider == "qwen3" {
+        info!("🎯 Using Qwen3 ASR (selected in settings)");
+        let qwen_provider = Arc::new(Qwen3RemoteProvider {
+            endpoint: "http://127.0.0.1:8000".to_string(),
+            api_key: "local-secret-123".to_string(),
+        });
+        return Ok(TranscriptionEngine::Provider(qwen_provider));
+    }
+
+    // Initialize the appropriate engine based on provider (original logic)
     match config.provider.as_str() {
         "parakeet" => {
             info!("🦜 Initializing Parakeet transcription engine");
