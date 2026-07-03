@@ -9,7 +9,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: macos-14  # ← Changed from macos-latest to macos-14
+    runs-on: macos-13  # ← Changed from macos-latest to macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
