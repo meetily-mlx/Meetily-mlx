@@ -9,7 +9,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: macos-latest
+    runs-on: macos-14  # ← Changed from macos-latest to macos-14
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # Updated to suppress Node 20 deprecation notices
+          node-version: '22'
 
       - name: Get pnpm store directory
         shell: bash
@@ -69,7 +69,6 @@ jobs:
           echo "✓ macOS build will use Metal GPU acceleration (enabled by default)"
           echo "✓ CoreML acceleration available for Apple Silicon"
 
-      # 🎯 FIX INJECTED HERE: Switch the active tools context to the full Xcode IDE app bundle
       - name: Set up full Xcode Version
         run: |
           LATEST_XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -n 1)
@@ -91,10 +90,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: frontend/src-tauri/binaries/ffmpeg-*
-          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}    
+          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}
 
+      # ✅ SINGLE BUILD - Removed duplicate
       - name: Build with Tauri
-        id: tauri-build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,22 +106,7 @@ jobs:
           projectPath: frontend
           args: ""
 
-      - name: Upload artifacts (macOS)
-        uses: actions/upload-artifact@v4
-        with:
-          name: meetily-mac-app
-          path: |
-            frontend/src-tauri/target/release/bundle/dmg/*.dmg
-            frontend/src-tauri/target/release/bundle/macos/*.app
-          retention-days: 30
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # ✅ UPLOAD ARTIFACTS - Single upload step
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -130,3 +114,4 @@ jobs:
           path: |
             frontend/src-tauri/target/release/bundle/dmg/*.dmg
             frontend/src-tauri/target/release/bundle/macos/*.app
+          retention-days: 30
