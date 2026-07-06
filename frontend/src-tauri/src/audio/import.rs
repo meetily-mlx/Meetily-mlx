@@ -930,7 +930,6 @@ fn write_import_metadata(
 // ============================================================================
 
 /// Select an audio file and validate it
-/// Select an audio file and validate it
 #[tauri::command]
 pub async fn select_and_validate_audio_command<R: Runtime>(
     app: AppHandle<R>,
@@ -952,7 +951,7 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
     match file_path {
         Some(path) => {
             let path_str = path.to_string();
-            info!("User selected: {}", path_str); 
+            info!("User selected: {}", path_str);
 
             match validate_audio_file(Path::new(&path_str)) {
                 Ok(info) => Ok(Some(info)),
@@ -966,5 +965,4 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
             info!("User cancelled file selection");
             Ok(None)
         }
-    }
-}
+   
