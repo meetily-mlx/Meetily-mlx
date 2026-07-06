@@ -53,20 +53,27 @@ jobs:
         with:
           targets: 'aarch64-apple-darwin'
 
-      - name: Setup macOS SDK
+      - name: Setup macOS SDK and Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.0.app/Contents/Developer
+          # Use Xcode 26.3.0 consistently
+          sudo xcode-select -s "/Applications/Xcode_26.3.0.app/Contents/Developer"
           SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
           echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
-          echo "SDKROOT: $SDKROOT"
+          
+          # Force the compiler toolchain
+          XCODE_PATH="/Applications/Xcode_26.3.0.app/Contents/Developer"
+          echo "CC=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc" >> $GITHUB_ENV
+          echo "CXX=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++" >> $GITHUB_ENV
+          
           echo "Xcode: $(xcodebuild -version | head -1)"
+          echo "SDKROOT: $SDKROOT"
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          key: macos-latest-aarch64-apple-darwin-vulkan-v2
+          key: macos-latest-aarch64-apple-darwin-vulkan-v2-xcode-26.3.0
 
       - name: Install frontend dependencies
         run: |
@@ -77,12 +84,6 @@ jobs:
         run: |
           echo "✓ macOS build will use Metal GPU acceleration (enabled by default)"
           echo "✓ CoreML acceleration available for Apple Silicon"
-
-      # Switch the active tools context to the full Xcode IDE app bundle
-      - name: Set up full Xcode Version
-        run: |
-          sudo xcode-select -s "/Applications/Xcode_26.3.0.app/Contents/Developer"
-          echo "Use Xcode: $(xcodebuild -version | head -1)"
 
       - name: Build llama-helper sidecar (macOS)
         shell: bash
