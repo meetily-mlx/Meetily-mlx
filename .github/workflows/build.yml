@@ -53,6 +53,13 @@ jobs:
         with:
           targets: 'aarch64-apple-darwin'
 
+      - name: Setup macOS SDK
+        run: |
+          SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+          echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
+          echo "SDKROOT set to: $SDKROOT"
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
