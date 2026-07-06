@@ -965,4 +965,54 @@ pub async fn select_and_validate_audio_command<R: Runtime>(
             info!("User cancelled file selection");
             Ok(None)
         }
-   
+    }
+}
+
+/// Validate an audio file from a given path (for drag-drop)
+#[tauri::command]
+pub async fn validate_audio_file_command(path: String) -> Result<AudioFileInfo, String> {
+    info!("Validating audio file: {}", path);
+    validate_audio_file(Path::new(&path)).map_err(|e| e.to_string())
+}
+
+/// Start importing an audio file
+#[tauri::command]
+pub async fn start_import_audio_command<R: Runtime>(
+    app: AppHandle<R>,
+    source_path: String,
+    title: String,
+    language: Option<String>,
+    model: Option<String>,
+    provider: Option<String>,
+) -> Result<ImportStarted, String> {
+    if IMPORT_IN_PROGRESS.load(Ordering::SeqCst) {
+        return Err("Import already in progress".to_string());
+    }
+
+    tauri::async_runtime::spawn(async move {
+        let result = start_import(app, source_path, title, language, model, provider).await;
+        if let Err(e) = result {
+            error!("Import failed: {}", e);
+        }
+    });
+
+    Ok(ImportStarted {
+        message: "Import started".to_string(),
+    })
+}
+
+/// Cancel ongoing import
+#[tauri::command]
+pub async fn cancel_import_command() -> Result<(), String> {
+    if !is_import_in_progress() {
+        return Err("No import in progress".to_string());
+    }
+    cancel_import();
+    Ok(())
+}
+
+/// Check if import is in progress
+#[tauri::command]
+pub async fn is_import_in_progress_command() -> bool {
+    is_import_in_progress()
+}
