@@ -4,7 +4,7 @@
 // transcription engines (Whisper, Parakeet, future providers).
 
 use async_trait::async_trait;
-use log::{info, warn, error}
+use log::{info, warn, error};
 
 // ============================================================================
 // TRANSCRIPTION PROVIDER TRAIT & ERROR TYPES
