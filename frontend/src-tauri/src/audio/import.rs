@@ -266,6 +266,7 @@ pub async fn start_import<R: Runtime>(
     IMPORT_CANCELLED.store(false, Ordering::SeqCst);
 
     let use_parakeet = provider.as_deref() == Some("parakeet");
+    let use_qwen3 = provider.as_deref() == Some("qwen3");
     let result = run_import(
         app.clone(),
         source_path,
@@ -508,7 +509,8 @@ async fn run_import<R: Runtime>(
     emit_progress(&app, "transcribing", 30, "Loading transcription engine...");
 
     // Initialize the appropriate engine
-    let whisper_engine = if !use_parakeet && total_segments > 0 {
+    // Initialize the appropriate engine
+    let whisper_engine = if !use_parakeet && !use_qwen3 && total_segments > 0 {
         Some(get_or_init_whisper(&app, model.as_deref()).await?)
     } else {
         None
@@ -518,6 +520,8 @@ async fn run_import<R: Runtime>(
     } else {
         None
     };
+    // Qwen3 engine will be handled via the provider trait
+
 
     // Split very long segments at silence boundaries for better transcription quality.
     // Hard cuts at arbitrary sample positions lose words at boundaries. Instead, scan
@@ -579,7 +583,25 @@ async fn run_import<R: Runtime>(
         }
 
         // Transcribe
-        let (text, conf) = if use_parakeet {
+        let (text, conf) = if use_qwen3 {
+            // Use Qwen3 provider
+            use crate::audio::transcription::{TranscriptionProvider, Qwen3RemoteProvider};
+            use crate::audio::transcription::engine::get_or_init_transcription_engine;
+            
+            // Get the Qwen3 engine
+            let engine = get_or_init_transcription_engine(&app).await
+                .map_err(|e| anyhow!("Failed to initialize Qwen3 engine: {}", e))?;
+            
+            // Transcribe using the provider trait
+            let result = match engine {
+                crate::audio::transcription::TranscriptionEngine::Provider(provider) => {
+                    provider.transcribe(segment.samples.clone(), language.clone()).await
+                        .map_err(|e| anyhow!("Qwen3 transcription failed on segment {}: {}", i, e))?
+                }
+                _ => return Err(anyhow!("Qwen3 engine not properly initialized")),
+            };
+            (result.text, result.confidence.unwrap_or(0.9))
+        } else if use_parakeet {
             let engine = parakeet_engine.as_ref().unwrap();
             let text = engine
                 .transcribe_audio(segment.samples.clone())

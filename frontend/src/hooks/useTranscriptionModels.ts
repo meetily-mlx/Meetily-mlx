@@ -8,7 +8,7 @@ export interface RawModelInfo {
 }
 
 export interface ModelOption {
-  provider: 'whisper' | 'parakeet';
+  provider: 'whisper' | 'parakeet' | 'qwen3';  // ✅ Add 'qwen3' here
   name: string;
   displayName: string;
   size_mb: number;
@@ -44,6 +44,15 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
   const fetchModels = useCallback(async () => {
     setLoadingModels(true);
     const allModels: ModelOption[] = [];
+
+    // ADD QWEN3 AS A STATIC OPTION
+    // Qwen3 is a remote server, not a local model, so it's always "available"
+    allModels.push({
+      provider: 'qwen3',
+      name: 'Qwen/Qwen3-ASR-0.6B',
+      displayName: 'Qwen3-ASR-0.6B (MLX - Apple Silicon)',
+      size_mb: 0, // Remote model, no local size
+    });
 
     // Fetch Whisper models
     try {
@@ -88,7 +97,8 @@ export function useTranscriptionModels(transcriptModelConfig: TranscriptModelCon
     const configuredMatch = allModels.find(
       (m) =>
         (configuredProvider === 'localWhisper' && m.provider === 'whisper' && m.name === configuredModel) ||
-        (configuredProvider === 'parakeet' && m.provider === 'parakeet' && m.name === configuredModel)
+        (configuredProvider === 'parakeet' && m.provider === 'parakeet' && m.name === configuredModel) ||
+        (configuredProvider === 'qwen3' && m.provider === 'qwen3' && m.name === configuredModel) // ✅ Add qwen3 match
     );
 
     // Only set default model if user hasn't manually selected one
