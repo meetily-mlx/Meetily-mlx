@@ -114,11 +114,12 @@ const LANGUAGES: Language[] = [
   { code: 'su', name: 'Sundanese' },
 ];
 
+// ✅ FIXED: Added 'qwen3' to the provider type
 interface LanguageSelectionProps {
   selectedLanguage: string;
   onLanguageChange: (language: string) => void;
   disabled?: boolean;
-  provider?: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai';
+  provider?: 'localWhisper' | 'parakeet' | 'deepgram' | 'elevenLabs' | 'groq' | 'openai' | 'qwen3';
 }
 
 export function LanguageSelection({
@@ -132,7 +133,9 @@ export function LanguageSelection({
 
   // Parakeet only supports auto-detection (doesn't support manual language selection)
   const isParakeet = provider === 'parakeet';
-  const availableLanguages = isParakeet
+  // Qwen3 also only supports auto-detection (like Parakeet)
+  const isQwen3 = provider === 'qwen3';
+  const availableLanguages = (isParakeet || isQwen3)
     ? LANGUAGES.filter(lang => lang.code === 'auto' || lang.code === 'auto-translate')
     : LANGUAGES;
 
@@ -173,6 +176,13 @@ export function LanguageSelection({
     lang => lang.code === selectedLanguage
   )?.name || 'Auto Detect (Original Language)';
 
+  // Get provider name for display
+  const getProviderDisplayName = () => {
+    if (provider === 'qwen3') return 'Qwen3';
+    if (provider === 'parakeet') return 'Parakeet';
+    return 'this provider';
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -197,11 +207,11 @@ export function LanguageSelection({
           ))}
         </select>
 
-        {/* Parakeet language limitation warning */}
-        {isParakeet && (
+        {/* Language limitation warning for providers that only support auto-detection */}
+        {(isParakeet || isQwen3) && (
           <div className="p-2 bg-amber-50 border border-amber-200 rounded text-amber-800">
-            <p className="font-medium">ℹ️ Parakeet Language Support</p>
-            <p className="mt-1 text-xs">Parakeet currently only supports automatic language detection. Manual language selection is not available. Use Whisper if you need to specify a particular language.</p>
+            <p className="font-medium">ℹ️ {getProviderDisplayName()} Language Support</p>
+            <p className="mt-1 text-xs">{getProviderDisplayName()} currently only supports automatic language detection. Manual language selection is not available. Use Whisper if you need to specify a particular language.</p>
           </div>
         )}
 
