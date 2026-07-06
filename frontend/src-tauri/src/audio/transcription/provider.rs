@@ -4,6 +4,7 @@
 // transcription engines (Whisper, Parakeet, future providers).
 
 use async_trait::async_trait;
+use log::{info, warn, error}
 
 // ============================================================================
 // TRANSCRIPTION PROVIDER TRAIT & ERROR TYPES
@@ -89,6 +90,16 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         _language: Option<String>,
     ) -> std::result::Result<TranscriptResult, TranscriptionError> {
         
+        info!("🔊 Qwen3: Transcribing {} audio samples", audio.len());
+        
+        // Skip if audio is too short
+        if audio.len() < 1600 { // 100ms at 16kHz
+            return Err(TranscriptionError::AudioTooShort {
+                samples: audio.len(),
+                minimum: 1600,
+            });
+        }
+
         // 1. Convert the f32 audio samples into standard 16-bit PCM WAV bytes
         let mut wav_bytes = Vec::new();
         let spec = hound::WavSpec {
@@ -100,44 +111,100 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         
         {
             let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut wav_bytes), spec)
-                .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?;
+                .map_err(|e| TranscriptionError::EngineFailed(format!("WAV writer error: {}", e)))?;
             
             for &sample in &audio {
-                // Scale f32 sample [-1.0, 1.0] to i16 boundaries
-                let scaled = (sample * i16::MAX as f32) as i16;
+                let clamped = sample.clamp(-1.0, 1.0);
+                let scaled = (clamped * i16::MAX as f32) as i16;
                 writer.write_sample(scaled)
-                    .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?;
+                    .map_err(|e| TranscriptionError::EngineFailed(format!("WAV write error: {}", e)))?;
             }
-            writer.finalize().map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?;
+            writer.finalize().map_err(|e| TranscriptionError::EngineFailed(format!("WAV finalize error: {}", e)))?;
         }
 
-        // 2. Build the HTTP Multi-part Request
-        let client = reqwest::Client::new();
+        info!("📤 Qwen3: Created WAV file ({} bytes)", wav_bytes.len());
+
+        // 2. Build the HTTP Multipart Request
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| TranscriptionError::EngineFailed(format!("HTTP client error: {}", e)))?;
+            
         let audio_part = reqwest::multipart::Part::bytes(wav_bytes)
-            .file_name("chunk.wav")
+            .file_name("audio.wav")
             .mime_str("audio/wav")
-            .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?;
+            .map_err(|e| TranscriptionError::EngineFailed(format!("Multipart error: {}", e)))?;
             
         let form = reqwest::multipart::Form::new().part("file", audio_part);
 
-        // 3. Post to the MLX server
-        let response = client.post(&format!("{}/audio/transcriptions", self.endpoint))
+        // 3. MLX Qwen3 uses /transcribe endpoint
+        let base_endpoint = self.endpoint.trim_end_matches('/');
+        let url = format!("{}/transcribe", base_endpoint);
+        
+        info!("📤 Qwen3: Sending request to: {}", url);
+        
+        let response = client.post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .multipart(form)
             .send()
             .await
-            .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?
+            .map_err(|e| {
+                let msg = format!("Request to Qwen3 server failed: {}", e);
+                error!("❌ Qwen3: {}", msg);
+                
+                // Provide helpful error messages
+                if e.is_connect() {
+                    TranscriptionError::EngineFailed(
+                        format!("Cannot connect to Qwen3 server at {}. Make sure it's running with: mlx-qwen3-asr serve --api-key {} --port 8765", 
+                            self.endpoint, self.api_key)
+                    )
+                } else if e.is_timeout() {
+                    TranscriptionError::EngineFailed(
+                        "Qwen3 server request timed out. The server might be busy.".to_string()
+                    )
+                } else {
+                    TranscriptionError::EngineFailed(msg)
+                }
+            })?;
+
+        let status = response.status();
+        info!("📥 Qwen3: Response status: {}", status);
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            let msg = format!("Qwen3 server error {}: {}", status, error_text);
+            error!("❌ Qwen3: {}", msg);
+            return Err(TranscriptionError::EngineFailed(msg));
+        }
+
+        // Parse the response
+        let json_response = response
             .json::<serde_json::Value>()
             .await
-            .map_err(|e| TranscriptionError::EngineFailed(e.to_string()))?;
+            .map_err(|e| {
+                let msg = format!("Failed to parse Qwen3 response: {}", e);
+                error!("❌ Qwen3: {}", msg);
+                TranscriptionError::EngineFailed(msg)
+            })?;
 
-        // 4. Extract text
-        let transcribed_text = response["text"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        info!("📥 Qwen3: Response: {}", json_response);
 
-        // 5. Build native TranscriptResult structure
+        // Extract text - MLX Qwen3 returns { "text": "..." }
+        let transcribed_text = if let Some(text) = json_response["text"].as_str() {
+            text.to_string()
+        } else if let Some(text) = json_response["result"].as_str() {
+            text.to_string()
+        } else if let Some(text) = json_response["transcription"].as_str() {
+            text.to_string()
+        } else {
+            warn!("⚠️ Qwen3: Unexpected response format: {}", json_response);
+            return Err(TranscriptionError::EngineFailed(
+                format!("Unexpected response format: missing 'text' field. Got: {}", json_response)
+            ));
+        };
+
+        info!("✅ Qwen3: Transcription: '{}'", transcribed_text);
+
         Ok(TranscriptResult {
             text: transcribed_text,
             confidence: None,
@@ -146,11 +213,24 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
     }
 
     async fn is_model_loaded(&self) -> bool {
-        true // Handled by your external MLX server
+        // Check if server is reachable
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap_or_default();
+        
+        let base_endpoint = self.endpoint.trim_end_matches('/');
+        let url = format!("{}/transcribe", base_endpoint);
+        
+        // Make a HEAD request to check if server is alive
+        match client.head(&url).send().await {
+            Ok(response) => response.status().is_success() || response.status() == 405, // 405 Method Not Allowed means server exists
+            Err(_) => false,
+        }
     }
 
     async fn get_current_model(&self) -> Option<String> {
-        Some("mlx-qwen3-asr".to_string())
+        Some("Qwen/Qwen3-ASR-0.6B".to_string())
     }
 
     fn provider_name(&self) -> &'static str {

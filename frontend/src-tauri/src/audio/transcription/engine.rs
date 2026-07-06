@@ -86,71 +86,86 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         }
     };
 
-    // ✅ NEW: If qwen3 is selected, bypass validation (server handles it)
+    // ✅ FIXED: If qwen3 is selected, just validate connection (don't return engine)
     if config.provider == "qwen3" {
-        info!("🚀 Qwen3 selected - skipping local model validation");
-        return Ok(());
-    }
-
-    // Validate based on provider (original logic)
-    match config.provider.as_str() {
-        "localWhisper" => {
-            info!("🔍 Validating Whisper model...");
-            // Ensure whisper engine is initialized first
-            if let Err(init_error) = crate::whisper_engine::commands::whisper_init().await {
-                warn!("❌ Failed to initialize Whisper engine: {}", init_error);
-                return Err(format!(
-                    "Failed to initialize speech recognition: {}",
-                    init_error
-                ));
-            }
-
-            // Call the whisper validation command with config support
-            match crate::whisper_engine::commands::whisper_validate_model_ready_with_config(app).await {
-                Ok(model_name) => {
-                    info!("✅ Whisper model validation successful: {} is ready", model_name);
-                    Ok(())
-                }
-                Err(e) => {
-                    warn!("❌ Whisper model validation failed: {}", e);
-                    Err(e)
-                }
-            }
-        }
-        "parakeet" => {
-            info!("🔍 Validating Parakeet model...");
-            // Ensure parakeet engine is initialized first
-            if let Err(init_error) = crate::parakeet_engine::commands::parakeet_init().await {
-                warn!("❌ Failed to initialize Parakeet engine: {}", init_error);
-                return Err(format!(
-                    "Failed to initialize Parakeet speech recognition: {}",
-                    init_error
-                ));
-            }
-
-            // Use the validation command that includes auto-discovery and loading
-            match crate::parakeet_engine::commands::parakeet_validate_model_ready_with_config(app).await {
-                Ok(model_name) => {
-                    info!("✅ Parakeet model validation successful: {} is ready", model_name);
-                    Ok(())
-                }
-                Err(e) => {
-                    warn!("❌ Parakeet model validation failed: {}", e);
-                    Err(e)
-                }
-            }
-        }
-        "qwen3" => {
-            // This is already handled above, but keep as fallback
-            info!("🚀 Qwen3 selected - skipping local model validation");
+        info!("🚀 Qwen3 selected - validating server connection");
+        
+        // Use API key from config, or default
+        let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
+        let endpoint = "http://127.0.0.1:8765".to_string();
+        
+        info!("🎯 Qwen3 ASR endpoint: {}, using API key: {}", endpoint, api_key);
+        info!("💡 Make sure the server is running: mlx-qwen3-asr serve --api-key {} --port 8765", api_key);
+        
+        // Test connection to Qwen3 server
+        let provider = Qwen3RemoteProvider {
+            endpoint,
+            api_key,
+        };
+        
+        if provider.is_model_loaded().await {
+            info!("✅ Qwen3 server is reachable and ready");
             Ok(())
+        } else {
+            warn!("⚠️ Qwen3 server is not reachable");
+            Err("Qwen3 server is not running or not reachable. Please start it with: mlx-qwen3-asr serve --api-key local-secret-123 --port 8765".to_string())
         }
-        other => {
-            warn!("❌ Unsupported transcription provider for local recording: {}", other);
-            Err(format!(
-                "Provider '{}' is not supported for local transcription. Please select 'localWhisper', 'parakeet', or 'qwen3'.",
-                other
-            ))
+    } else {
+        // Validate based on provider (original logic)
+        match config.provider.as_str() {
+            "localWhisper" => {
+                info!("🔍 Validating Whisper model...");
+                // Ensure whisper engine is initialized first
+                if let Err(init_error) = crate::whisper_engine::commands::whisper_init().await {
+                    warn!("❌ Failed to initialize Whisper engine: {}", init_error);
+                    return Err(format!(
+                        "Failed to initialize speech recognition: {}",
+                        init_error
+                    ));
+                }
+
+                // Call the whisper validation command with config support
+                match crate::whisper_engine::commands::whisper_validate_model_ready_with_config(app).await {
+                    Ok(model_name) => {
+                        info!("✅ Whisper model validation successful: {} is ready", model_name);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        warn!("❌ Whisper model validation failed: {}", e);
+                        Err(e)
+                    }
+                }
+            }
+            "parakeet" => {
+                info!("🔍 Validating Parakeet model...");
+                // Ensure parakeet engine is initialized first
+                if let Err(init_error) = crate::parakeet_engine::commands::parakeet_init().await {
+                    warn!("❌ Failed to initialize Parakeet engine: {}", init_error);
+                    return Err(format!(
+                        "Failed to initialize Parakeet speech recognition: {}",
+                        init_error
+                    ));
+                }
+
+                // Use the validation command that includes auto-discovery and loading
+                match crate::parakeet_engine::commands::parakeet_validate_model_ready_with_config(app).await {
+                    Ok(model_name) => {
+                        info!("✅ Parakeet model validation successful: {} is ready", model_name);
+                        Ok(())
+                    }
+                    Err(e) => {
+                        warn!("❌ Parakeet model validation failed: {}", e);
+                        Err(e)
+                    }
+                }
+            }
+            other => {
+                warn!("❌ Unsupported transcription provider for local recording: {}", other);
+                Err(format!(
+                    "Provider '{}' is not supported for local transcription. Please select 'localWhisper', 'parakeet', or 'qwen3'.",
+                    other
+                ))
+            }
         }
     }
 }
@@ -192,13 +207,22 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         }
     };
 
-    // ✅ NEW: Check if user selected qwen3
+    // ✅ FIXED: Use port 8765 (not 8000) and get API key from config
     if config.provider == "qwen3" {
         info!("🎯 Using Qwen3 ASR (selected in settings)");
+        
+        // Use API key from config, or default
+        let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
+        // ✅ FIXED: Use port 8765
+        let endpoint = "http://127.0.0.1:8765".to_string();
+        
+        info!("📍 Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
+        
         let qwen_provider = Arc::new(Qwen3RemoteProvider {
-            endpoint: "http://127.0.0.1:8000".to_string(),
-            api_key: "local-secret-123".to_string(),
+            endpoint,
+            api_key,
         });
+        
         return Ok(TranscriptionEngine::Provider(qwen_provider));
     }
 
