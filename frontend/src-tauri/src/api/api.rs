@@ -1381,3 +1381,37 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
         }
     }
 }
+
+/// Test connection to Qwen3 ASR server
+#[tauri::command]
+pub async fn api_test_qwen3_connection(
+    endpoint: String,
+    api_key: String,
+) -> Result<serde_json::Value, String> {
+    log_info!("Testing Qwen3 connection to: {}", endpoint);
+    
+    use crate::audio::transcription::{TranscriptionProvider, Qwen3RemoteProvider};
+    
+    let provider = Qwen3RemoteProvider {
+        endpoint,
+        api_key,
+    };
+    
+    // Test with a small silent audio chunk (1 second of silence)
+    let test_audio = vec![0.0f32; 16000];
+    
+    match provider.transcribe(test_audio, None).await {
+        Ok(result) => {
+            log_info!("✅ Qwen3 connection test successful: {}", result.text);
+            Ok(serde_json::json!({
+                "status": "success",
+                "message": format!("Qwen3 server is reachable. Response: {}", result.text)
+            }))
+        }
+        Err(e) => {
+            let error_msg = format!("Qwen3 connection failed: {}", e);
+            log_error!("❌ {}", error_msg);
+            Err(error_msg)
+        }
+    }
+}
