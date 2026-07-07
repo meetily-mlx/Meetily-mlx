@@ -207,7 +207,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         }
     };
 
-    // ✅ FIXED: Use port 8765 (not 8000) and get API key from config
+    // FIXED: Use port 8765 and get API key from config
     if config.provider == "qwen3" {
         info!("🎯 Using Qwen3 ASR (selected in settings)");
         

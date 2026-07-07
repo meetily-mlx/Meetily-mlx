@@ -1382,7 +1382,7 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
     }
 }
 
-/// Test connection to Qwen3 ASR server
+/// Test connection to Qwen3 ASR server (health check only)
 #[tauri::command]
 pub async fn api_test_qwen3_connection(
     endpoint: String,
@@ -1390,26 +1390,37 @@ pub async fn api_test_qwen3_connection(
 ) -> Result<serde_json::Value, String> {
     log_info!("Testing Qwen3 connection to: {}", endpoint);
     
-    use crate::audio::transcription::{TranscriptionProvider, Qwen3RemoteProvider};
+    use reqwest;
     
-    let provider = Qwen3RemoteProvider {
-        endpoint,
-        api_key,
-    };
+    let base_endpoint = endpoint.trim_end_matches('/');
+    let url = format!("{}/transcribe", base_endpoint);
     
-    // Test with a small silent audio chunk (1 second of silence)
-    let test_audio = vec![0.0f32; 16000];
+    // Just check if the server responds to a HEAD request
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     
-    match provider.transcribe(test_audio, None).await {
-        Ok(result) => {
-            log_info!("✅ Qwen3 connection test successful: {}", result.text);
-            Ok(serde_json::json!({
-                "status": "success",
-                "message": format!("Qwen3 server is reachable. Response: {}", result.text)
-            }))
+    match client.head(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+    {
+        Ok(response) => {
+            let status = response.status();
+            if status.is_success() || status == 405 { // 405 = Method Not Allowed (server exists)
+                log_info!("✅ Qwen3 server is reachable (status: {})", status);
+                Ok(serde_json::json!({
+                    "status": "success",
+                    "message": format!("Qwen3 server is reachable. Status: {}", status)
+                }))
+            } else {
+                log_warn!("⚠️ Qwen3 server responded with status: {}", status);
+                Err(format!("Server responded with status: {}", status))
+            }
         }
         Err(e) => {
-            let error_msg = format!("Qwen3 connection failed: {}", e);
+            let error_msg = format!("Cannot connect to Qwen3 server: {}", e);
             log_error!("❌ {}", error_msg);
             Err(error_msg)
         }
