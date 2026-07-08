@@ -204,7 +204,7 @@ impl SettingsRepository {
         .bind(model)
         .execute(pool)
         .await?;
-
+    
         Ok(())
     }
 

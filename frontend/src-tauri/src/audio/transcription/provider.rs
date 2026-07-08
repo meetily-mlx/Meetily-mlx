@@ -135,7 +135,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .mime_str("audio/wav")
             .map_err(|e| TranscriptionError::EngineFailed(format!("Multipart error: {}", e)))?;
             
-        let form = reqwest::multipart::Form::new().part("file", audio_part);
+        let form = reqwest::multipart::Form::new().part("audio", audio_part); // send to server as audio not file
 
         // 3. MLX Qwen3 uses /transcribe endpoint
         let base_endpoint = self.endpoint.trim_end_matches('/');
