@@ -213,18 +213,21 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
     }
 
     async fn is_model_loaded(&self) -> bool {
-        // Check if server is reachable
+        // Check if server is reachable by testing the root or health endpoint
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(2))
             .build()
             .unwrap_or_default();
         
         let base_endpoint = self.endpoint.trim_end_matches('/');
-        let url = format!("{}/transcribe", base_endpoint);
         
-        // Make a HEAD request to check if server is alive
-        match client.head(&url).send().await {
-            Ok(response) => response.status().is_success() || response.status() == 405, // 405 Method Not Allowed means server exists
+        // Try GET request to the base URL first
+        match client.get(base_endpoint).send().await {
+            Ok(response) => {
+                // 200, 404, or 405 all mean the server is running
+                let status = response.status();
+                status.is_success() || status == 404 || status == 405
+            }
             Err(_) => false,
         }
     }
