@@ -192,7 +192,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         Ok(None) => {
             info!("📝 No transcript config found, defaulting to qwen3");
             crate::api::api::TranscriptConfig {
-                provider: "qwen3".to_string(), // ✅ Default to qwen3 instead of parakeet
+                provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
             }
@@ -200,7 +200,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         Err(e) => {
             warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
             crate::api::api::TranscriptConfig {
-                provider: "qwen3".to_string(), // ✅ Default to qwen3 instead of parakeet
+                provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
             }
@@ -484,4 +484,53 @@ pub async fn get_or_init_whisper<R: Runtime>(
     }
 
     Ok(engine)
+}
+
+pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    // Get provider configuration
+    let config = match crate::api::api::api_get_transcript_config(
+        app.clone(),
+        app.clone().state(),
+        None,
+    )
+    .await
+    {
+        Ok(Some(config)) => {
+            // 🔍 ADD THIS DEBUG LOGGING
+            info!("🔍 DEBUG: Config from database:");
+            info!("🔍 DEBUG:   provider = '{}'", config.provider);
+            info!("🔍 DEBUG:   model = '{}'", config.model);
+            info!("🔍 DEBUG:   api_key = {}", if config.api_key.is_some() { "SOME" } else { "NONE" });
+            config
+        }
+        Ok(None) => {
+            // 🔍 ADD THIS DEBUG LOGGING
+            info!("🔍 DEBUG: No config in database, using default");
+            crate::api::api::TranscriptConfig {
+                provider: "qwen3".to_string(),
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
+            }
+        }
+        Err(e) => {
+            // 🔍 ADD THIS DEBUG LOGGING
+            info!("🔍 DEBUG: Error reading config: {}", e);
+            crate::api::api::TranscriptConfig {
+                provider: "qwen3".to_string(),
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
+            }
+        }
+    };
+
+    // 🔍 ADD THIS BEFORE THE QWEN3 CHECK
+    info!("🔍 DEBUG: Provider after config retrieval = '{}'", config.provider);
+
+    if config.provider == "qwen3" {
+        info!("🚀 Qwen3 selected - validating server connection");
+        // ... rest of Qwen3 validation
+    } else {
+        info!("🔍 DEBUG: Provider is NOT qwen3 (it's '{}'), falling through to Parakeet/Whisper", config.provider);
+        // ... rest of code
+    }
 }

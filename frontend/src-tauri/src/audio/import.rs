@@ -1016,3 +1016,12 @@ pub async fn cancel_import_command() -> Result<(), String> {
 pub async fn is_import_in_progress_command() -> bool {
     is_import_in_progress()
 }
+
+// Around line 230 in import.rs
+let use_parakeet = provider.as_deref() == Some("parakeet");
+let use_qwen3 = provider.as_deref() == Some("qwen3");
+
+// 🔍 ADD THIS
+info!("🔍 IMPORT: provider='{:?}', use_parakeet={}, use_qwen3={}", 
+    provider, use_parakeet, use_qwen3
+);

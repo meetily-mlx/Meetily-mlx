@@ -1427,3 +1427,32 @@ pub async fn api_test_qwen3_connection(
         }
     }
 }
+
+pub async fn api_save_transcript_config<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    provider: String,
+    model: String,
+    api_key: Option<String>,
+    _auth_token: Option<String>,
+) -> Result<serde_json::Value, String> {
+    // 🔍 ADD THIS
+    info!("🟢 SAVE CONFIG: provider='{}', model='{}', api_key={}", 
+        provider, model, 
+        if api_key.is_some() { "SOME" } else { "NONE" }
+    );
+    // ... rest of function
+}
+
+pub async fn api_get_transcript_config<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    _auth_token: Option<String>,
+) -> Result<Option<TranscriptConfig>, String> {
+    // 🔍 ADD THIS
+    info!("🟢 GET CONFIG: Reading from database");
+    // ... rest of function
+    
+    // When returning:
+    info!("🟢 GET CONFIG: Returning provider='{}'", config.provider);
+}
