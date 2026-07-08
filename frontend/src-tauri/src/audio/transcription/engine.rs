@@ -190,19 +190,19 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             config
         }
         Ok(None) => {
-            info!("📝 No transcript config found, defaulting to parakeet");
+            info!("📝 No transcript config found, defaulting to qwen3");
             crate::api::api::TranscriptConfig {
-                provider: "parakeet".to_string(),
-                model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
-                api_key: None,
+                provider: "qwen3".to_string(), // ✅ Default to qwen3 instead of parakeet
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
             }
         }
         Err(e) => {
-            warn!("⚠️ Failed to get transcript config: {}, defaulting to parakeet", e);
+            warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
             crate::api::api::TranscriptConfig {
-                provider: "parakeet".to_string(),
-                model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
-                api_key: None,
+                provider: "qwen3".to_string(), // ✅ Default to qwen3 instead of parakeet
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
             }
         }
     };
