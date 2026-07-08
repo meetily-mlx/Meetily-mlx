@@ -101,6 +101,8 @@ pub struct TranscriptConfig {
     pub model: String,
     #[serde(rename = "apiKey")]
     pub api_key: Option<String>,
+    #[serde(rename = "endpoint")]  // ← Add this
+    pub endpoint: Option<String>,   // ← Add this
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -109,6 +111,8 @@ pub struct SaveTranscriptConfigRequest {
     pub model: String,
     #[serde(rename = "apiKey")]
     pub api_key: Option<String>,
+    #[serde(rename = "endpoint")]  // ← Add this
+    pub endpoint: Option<String>,   // ← Add this
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -615,10 +619,23 @@ pub async fn api_get_transcript_config<R: Runtime>(
             match SettingsRepository::get_transcript_api_key(pool, &config.provider).await {
                 Ok(api_key) => {
                     log_info!("Successfully retrieved transcript config and API key.");
+                    
+                    // ✅ NEW: Get endpoint if provider is qwen3
+                    let endpoint = if config.provider == "qwen3" {
+                        // Try to get from database first, fallback to default
+                        match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
+                            Ok(Some(endpoint)) => Some(endpoint),
+                            _ => Some("http://127.0.0.1:8765".to_string())
+                        }
+                    } else {
+                        None
+                    };
+                    
                     Ok(Some(TranscriptConfig {
                         provider: config.provider,
                         model: config.model,
                         api_key,
+                        endpoint,  // ← ADD THIS
                     }))
                 }
                 Err(e) => {
@@ -637,6 +654,7 @@ pub async fn api_get_transcript_config<R: Runtime>(
                 provider: "parakeet".to_string(),
                 model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
                 api_key: None,
+                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
             }))
         }
         Err(e) => {
@@ -653,25 +671,39 @@ pub async fn api_save_transcript_config<R: Runtime>(
     provider: String,
     model: String,
     api_key: Option<String>,
+    endpoint: Option<String>,  // ← ADD THIS PARAMETER
     _auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
-        "api_save_transcript_config called (native) for provider '{}'",
-        &provider
+        "api_save_transcript_config called (native) for provider '{}', endpoint: {:?}",
+        &provider,
+        &endpoint
     );
     let pool = state.db_manager.pool();
 
+    // Save provider and model
     if let Err(e) = SettingsRepository::save_transcript_config(pool, &provider, &model).await {
         log_error!("Failed to save transcript config: {}", e);
         return Err(e.to_string());
     }
 
+    // Save API key if provided
     if let Some(key) = api_key {
         if !key.is_empty() {
             log_info!("API key provided, saving for transcript provider...");
-            if let Err(e) = SettingsRepository::save_transcript_api_key(pool, &provider, &key).await
-            {
+            if let Err(e) = SettingsRepository::save_transcript_api_key(pool, &provider, &key).await {
                 log_error!("Failed to save transcript API key: {}", e);
+                return Err(e.to_string());
+            }
+        }
+    }
+
+    // ✅ NEW: Save endpoint for Qwen3
+    if let Some(endpoint_url) = endpoint {
+        if !endpoint_url.is_empty() && provider == "qwen3" {
+            log_info!("Saving Qwen3 endpoint: {}", endpoint_url);
+            if let Err(e) = SettingsRepository::save_setting(pool, "qwen3_endpoint", &endpoint_url).await {
+                log_error!("Failed to save Qwen3 endpoint: {}", e);
                 return Err(e.to_string());
             }
         }

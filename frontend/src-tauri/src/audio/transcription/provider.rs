@@ -237,3 +237,19 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         "Qwen3RemoteProvider"
     }
 }
+
+// Add to Qwen3RemoteProvider impl
+pub async fn transcribe_stream(
+    &self,
+    audio_chunks: Vec<Vec<f32>>,
+) -> Result<Vec<TranscriptResult>, TranscriptionError> {
+    let mut results = Vec::new();
+    
+    for chunk in audio_chunks {
+        // Process each chunk (2-3 seconds of audio)
+        let result = self.transcribe(chunk, None).await?;
+        results.push(result);
+    }
+    
+    Ok(results)
+}

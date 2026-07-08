@@ -86,13 +86,18 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         }
     };
 
-    // ✅ FIXED: If qwen3 is selected, just validate connection (don't return engine)
+    // ✅ FIXED: If qwen3 is selected, just validate connection (don't return engine) (changed)
+    // FIX: Use endpoint from config instead of hardcoding
     if config.provider == "qwen3" {
         info!("🚀 Qwen3 selected - validating server connection");
         
         // Use API key from config, or default
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
-        let endpoint = "http://127.0.0.1:8765".to_string();
+        
+        // ✅ FIX: Use endpoint from config with fallback
+        let endpoint = config.endpoint
+            .clone()
+            .unwrap_or_else(|| "http://127.0.0.1:8765".to_string());
         
         info!("🎯 Qwen3 ASR endpoint: {}, using API key: {}", endpoint, api_key);
         info!("💡 Make sure the server is running: mlx-qwen3-asr serve --api-key {} --port 8765", api_key);

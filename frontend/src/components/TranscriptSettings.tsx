@@ -108,20 +108,17 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         }
     };
 
-    // UPDATE: Save Qwen3 configuration
+    // UPDATE: Save Qwen3 configuration to backend
     const saveQwen3Config = async () => {
         if (uiProvider === 'qwen3') {
             try {
-                // Save the API key
-                if (apiKey) {
-                    await invoke('api_save_transcript_config', {
-                        provider: 'qwen3',
-                        model: 'Qwen/Qwen3-ASR-0.6B',
-                        apiKey: apiKey || 'local-secret-123'
-                    });
-                }
-                // Save endpoint to localStorage for UI persistence
-                localStorage.setItem('qwen3-endpoint', qwenEndpoint);
+                // Save to backend with endpoint
+                await invoke('api_save_transcript_config', {
+                    provider: 'qwen3',
+                    model: 'Qwen/Qwen3-ASR-0.6B',
+                    apiKey: apiKey || 'local-secret-123',
+                    endpoint: qwenEndpoint  // ← ADD THIS
+                });
                 console.log('✅ Qwen3 config saved:', { endpoint: qwenEndpoint, apiKey: apiKey || 'local-secret-123' });
             } catch (error) {
                 console.error('Failed to save Qwen3 config:', error);
