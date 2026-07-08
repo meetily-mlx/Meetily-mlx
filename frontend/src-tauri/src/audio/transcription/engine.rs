@@ -69,34 +69,30 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
             config
         }
         Ok(None) => {
-            info!("📝 No transcript config found, defaulting to parakeet");
+            info!("📝 No transcript config found, defaulting to qwen3");
             crate::api::api::TranscriptConfig {
-                provider: "parakeet".to_string(),
-                model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
-                api_key: None,
-                endpoint: None, 
+                provider: "qwen3".to_string(),
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
+                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
             }
         }
         Err(e) => {
-            warn!("⚠️ Failed to get transcript config: {}, defaulting to parakeet", e);
+            warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
             crate::api::api::TranscriptConfig {
-                provider: "parakeet".to_string(),
-                model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
-                api_key: None,
-                endpoint: None, 
+                provider: "qwen3".to_string(),
+                model: "Qwen/Qwen3-ASR-0.6B".to_string(),
+                api_key: Some("local-secret-123".to_string()),
+                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
             }
         }
     };
 
-    // ✅ FIXED: If qwen3 is selected, just validate connection (don't return engine) (changed)
-    // FIX: Use endpoint from config instead of hardcoding
+    // ✅ FIXED: If qwen3 is selected, validate connection
     if config.provider == "qwen3" {
         info!("🚀 Qwen3 selected - validating server connection");
         
-        // Use API key from config, or default
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
-        
-        // ✅ FIX: Use endpoint from config with fallback
         let endpoint = config.endpoint
             .clone()
             .unwrap_or_else(|| "http://127.0.0.1:8765".to_string());
@@ -104,7 +100,6 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         info!("🎯 Qwen3 ASR endpoint: {}, using API key: {}", endpoint, api_key);
         info!("💡 Make sure the server is running: mlx-qwen3-asr serve --api-key {} --port 8765", api_key);
         
-        // Test connection to Qwen3 server
         let provider = Qwen3RemoteProvider {
             endpoint,
             api_key,
@@ -114,8 +109,10 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
             info!("✅ Qwen3 server is reachable and ready");
             Ok(())
         } else {
-            warn!("⚠️ Qwen3 server is not reachable");
-            Err("Qwen3 server is not running or not reachable. Please start it with: mlx-qwen3-asr serve --api-key local-secret-123 --port 8765".to_string())
+            // ⚠️ Don't fail validation just because the server isn't reachable
+            // Allow the user to still select Qwen3 - actual transcription will fail if server is down
+            warn!("⚠️ Qwen3 server is not reachable, but allowing selection");
+            Ok(())  // ← Always return Ok() for Qwen3, even if server not reachable
         }
     } else {
         // Validate based on provider (original logic)
@@ -199,40 +196,51 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         Ok(None) => {
             info!("📝 No transcript config found, defaulting to qwen3");
             crate::api::api::TranscriptConfig {
-                provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
+                provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
-                endpoint: None, 
+                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD THIS
             }
         }
         Err(e) => {
             warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
             crate::api::api::TranscriptConfig {
-                provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
+                provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
-                endpoint: None, 
+                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD THIS
             }
         }
     };
 
-    // FIXED: Use port 8765 and get API key from config
+    // ✅ Make sure Qwen3 is handled FIRST before any other provider
     if config.provider == "qwen3" {
         info!("🎯 Using Qwen3 ASR (selected in settings)");
         
         // Use API key from config, or default
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
-        // ✅ FIXED: Use port 8765
-        let endpoint = "http://127.0.0.1:8765".to_string();
+        // Use endpoint from config, or default
+        let endpoint = config.endpoint
+            .clone()
+            .unwrap_or_else(|| "http://127.0.0.1:8765".to_string());
         
         info!("📍 Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
         
+        // ✅ Create the provider and return it immediately
         let qwen_provider = Arc::new(Qwen3RemoteProvider {
             endpoint,
             api_key,
         });
         
-        return Ok(TranscriptionEngine::Provider(qwen_provider));
+        // ✅ Double-check the server is reachable
+        if qwen_provider.is_model_loaded().await {
+            info!("✅ Qwen3 server is reachable, returning engine");
+            return Ok(TranscriptionEngine::Provider(qwen_provider));
+        } else {
+            warn!("⚠️ Qwen3 server is not reachable, but continuing anyway");
+            // Still return the provider - let the actual transcription fail if needed
+            return Ok(TranscriptionEngine::Provider(qwen_provider));
+        }
     }
 
     // Initialize the appropriate engine based on provider (original logic)
