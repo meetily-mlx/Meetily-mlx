@@ -1,6 +1,7 @@
 use crate::database::models::{Setting, TranscriptSetting};
 use crate::summary::CustomOpenAIConfig;
 use sqlx::SqlitePool;
+sue sqlx::Row;
 
 #[derive(serde::Deserialize, Debug)]
 pub struct SaveModelConfigRequest {
