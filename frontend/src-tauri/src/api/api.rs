@@ -1392,27 +1392,28 @@ pub async fn api_test_qwen3_connection(
     
     use reqwest;
     
+    // Test the root server URL instead of the specific action route
     let base_endpoint = endpoint.trim_end_matches('/');
-    let url = format!("{}/transcribe", base_endpoint);
     
-    // Just check if the server responds to a HEAD request
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     
-    match client.head(&url)
+    // A standard GET request to the root is safer for general availability checks
+    match client.get(base_endpoint)
         .header("Authorization", format!("Bearer {}", api_key))
         .send()
         .await
     {
         Ok(response) => {
             let status = response.status();
-            if status.is_success() || status == 405 { // 405 = Method Not Allowed (server exists)
+            // Accepts 200 OK or 404 Not Found (meaning server is up, but root is unmapped)
+            if status.is_success() || status == reqwest::StatusCode::NOT_FOUND {
                 log_info!("✅ Qwen3 server is reachable (status: {})", status);
                 Ok(serde_json::json!({
                     "status": "success",
-                    "message": format!("Qwen3 server is reachable. Status: {}", status)
+                    "message": format!("Qwen3 server is up. Status: {}", status)
                 }))
             } else {
                 log_warn!("⚠️ Qwen3 server responded with status: {}", status);
