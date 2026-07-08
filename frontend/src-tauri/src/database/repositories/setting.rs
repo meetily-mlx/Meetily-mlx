@@ -38,12 +38,13 @@ impl SettingsRepository {
         Ok(setting)
     }
 
+    /// Save a generic key-value setting
     pub async fn save_setting(
         pool: &SqlitePool,
         key: &str,
         value: &str,
     ) -> std::result::Result<(), sqlx::Error> {
-        sqlx::query_as::<_, ()>(
+        sqlx::query(
             r#"
             INSERT OR REPLACE INTO kv_store (key, value)
             VALUES (?, ?)
@@ -53,21 +54,23 @@ impl SettingsRepository {
         .bind(value)
         .execute(pool)
         .await?;
+        
         Ok(())
     }
 
-    // ✅ Replace with this (works without DATABASE_URL):
+    /// Get a generic key-value setting
     pub async fn get_setting(
         pool: &SqlitePool,
         key: &str,
     ) -> std::result::Result<Option<String>, sqlx::Error> {
-        let row = sqlx::query_as::<_, (String,)>(
+        let row = sqlx::query(
             "SELECT value FROM kv_store WHERE key = ?"
         )
         .bind(key)
         .fetch_optional(pool)
         .await?;
-        Ok(row.map(|r| r.0))
+        
+        Ok(row.map(|r| r.get(0)))
     }
 
     pub async fn save_model_config(
