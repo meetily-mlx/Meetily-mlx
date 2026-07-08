@@ -74,6 +74,7 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 provider: "parakeet".to_string(),
                 model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
                 api_key: None,
+                endpoint: None, 
             }
         }
         Err(e) => {
@@ -82,6 +83,7 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 provider: "parakeet".to_string(),
                 model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
                 api_key: None,
+                endpoint: None, 
             }
         }
     };
@@ -200,6 +202,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                 provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
+                endpoint: None, 
             }
         }
         Err(e) => {
@@ -208,6 +211,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                 provider: "qwen3".to_string(), // Default to qwen3 instead of parakeet
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
                 api_key: Some("local-secret-123".to_string()),
+                endpoint: None, 
             }
         }
     };

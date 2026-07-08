@@ -43,36 +43,31 @@ impl SettingsRepository {
         key: &str,
         value: &str,
     ) -> std::result::Result<(), sqlx::Error> {
-        sqlx::query(
+        sqlx::query_as::<_, ()>(
             r#"
-            INSERT INTO kv_store (key, value)
-            VALUES ($1, $2)
-            ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
-                updated_at = CURRENT_TIMESTAMP
-            "#,
+            INSERT OR REPLACE INTO kv_store (key, value)
+            VALUES (?, ?)
+            "#
         )
         .bind(key)
         .bind(value)
         .execute(pool)
         .await?;
-
         Ok(())
     }
 
-    /// Get a generic key-value setting
+    // ✅ Replace with this (works without DATABASE_URL):
     pub async fn get_setting(
         pool: &SqlitePool,
         key: &str,
     ) -> std::result::Result<Option<String>, sqlx::Error> {
-        let row = sqlx::query!(
-            "SELECT value FROM kv_store WHERE key = $1",
-            key
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT value FROM kv_store WHERE key = ?"
         )
+        .bind(key)
         .fetch_optional(pool)
         .await?;
-        
-        Ok(row.map(|r| r.value))
+        Ok(row.map(|r| r.0))
     }
 
     pub async fn save_model_config(
