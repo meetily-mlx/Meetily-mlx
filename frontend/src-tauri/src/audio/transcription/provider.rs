@@ -327,3 +327,4 @@ pub async fn transcribe_stream(
     }
     Ok(results)
 }
+}
