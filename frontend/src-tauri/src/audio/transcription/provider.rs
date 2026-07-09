@@ -270,7 +270,8 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         text: transcribed_text,
         confidence: None,
         is_partial: false,
-        })
+        });
+    }
 
     async fn is_model_loaded(&self) -> bool {
         // Check if server is reachable
@@ -326,5 +327,4 @@ pub async fn transcribe_stream(
         results.push(result);
     }
     Ok(results)
-}
 }
