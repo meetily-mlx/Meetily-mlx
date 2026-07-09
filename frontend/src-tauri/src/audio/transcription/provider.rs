@@ -73,9 +73,6 @@ pub trait TranscriptionProvider: Send + Sync {
     fn provider_name(&self) -> &'static str;
 }
 
-
-// use crate::audio::transcription::{TranscriptionProvider, TranscriptResult}; 
-
 // CUSTOM QWEN3 REMOTE PROVIDER IMPLEMENTATION
 pub struct Qwen3RemoteProvider {
     pub endpoint: String,
@@ -89,11 +86,11 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         audio: Vec<f32>,
         _language: Option<String>,
     ) -> std::result::Result<TranscriptResult, TranscriptionError> {
-        
         info!("🔊 Qwen3: Transcribing {} audio samples", audio.len());
-        
+
         // Skip if audio is too short
-        if audio.len() < 1600 { // 100ms at 16kHz
+        if audio.len() < 1600 {
+            // 100ms at 16kHz
             return Err(TranscriptionError::AudioTooShort {
                 samples: audio.len(),
                 minimum: 1600,
@@ -108,42 +105,46 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,
         };
-        
+
         {
             let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut wav_bytes), spec)
                 .map_err(|e| TranscriptionError::EngineFailed(format!("WAV writer error: {}", e)))?;
-            
+
             for &sample in &audio {
                 let clamped = sample.clamp(-1.0, 1.0);
                 let scaled = (clamped * i16::MAX as f32) as i16;
-                writer.write_sample(scaled)
+                writer
+                    .write_sample(scaled)
                     .map_err(|e| TranscriptionError::EngineFailed(format!("WAV write error: {}", e)))?;
             }
-            writer.finalize().map_err(|e| TranscriptionError::EngineFailed(format!("WAV finalize error: {}", e)))?;
+            writer
+                .finalize()
+                .map_err(|e| TranscriptionError::EngineFailed(format!("WAV finalize error: {}", e)))?;
         }
 
         info!("📤 Qwen3: Created WAV file ({} bytes)", wav_bytes.len());
 
         // 2. Build the HTTP Multipart Request
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(60))
             .build()
             .map_err(|e| TranscriptionError::EngineFailed(format!("HTTP client error: {}", e)))?;
-            
+
         let audio_part = reqwest::multipart::Part::bytes(wav_bytes)
             .file_name("audio.wav")
             .mime_str("audio/wav")
             .map_err(|e| TranscriptionError::EngineFailed(format!("Multipart error: {}", e)))?;
-            
-        let form = reqwest::multipart::Form::new().part("audio", audio_part); // send to server as audio not file!
+
+        let form = reqwest::multipart::Form::new().part("audio", audio_part);
 
         // 3. MLX Qwen3 uses /transcribe endpoint
         let base_endpoint = self.endpoint.trim_end_matches('/');
         let url = format!("{}/transcribe", base_endpoint);
-        
+
         info!("📤 Qwen3: Sending request to: {}", url);
-        
-        let response = client.post(&url)
+
+        let response = client
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .multipart(form)
             .send()
@@ -151,16 +152,15 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .map_err(|e| {
                 let msg = format!("Request to Qwen3 server failed: {}", e);
                 error!("❌ Qwen3: {}", msg);
-                
-                // Provide helpful error messages
+
                 if e.is_connect() {
-                    TranscriptionError::EngineFailed(
-                        format!("Cannot connect to Qwen3 server at {}. Make sure it's running with: mlx-qwen3-asr serve --api-key {} --port 8765", 
-                            self.endpoint, self.api_key)
-                    )
+                    TranscriptionError::EngineFailed(format!(
+                        "Cannot connect to Qwen3 server at {}. Make sure it's running with: mlx-qwen3-asr serve --api-key {} --port 8765",
+                        self.endpoint, self.api_key
+                    ))
                 } else if e.is_timeout() {
                     TranscriptionError::EngineFailed(
-                        "Qwen3 server request timed out. The server might be busy.".to_string()
+                        "Qwen3 server request timed out. The server might be busy.".to_string(),
                     )
                 } else {
                     TranscriptionError::EngineFailed(msg)
@@ -179,121 +179,119 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
 
         // Parse the response
         let json_response = response
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|e| {
-            let msg = format!("Failed to parse Qwen3 response: {}", e);
-            error!("❌ Qwen3: {}", msg);
-            TranscriptionError::EngineFailed(msg)
-        })?;
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to parse Qwen3 response: {}", e);
+                error!("❌ Qwen3: {}", msg);
+                TranscriptionError::EngineFailed(msg)
+            })?;
 
         info!("📥 Qwen3: Response: {}", json_response);
 
-        // ✅ Check if this is an async queued job
+        // Check if this is an async queued job
         if let Some(status) = json_response["status"].as_str() {
-        if status == "queued" || status == "processing" {
-            let job_id = json_response["job_id"].as_str().ok_or_else(|| {
-                TranscriptionError::EngineFailed("Missing job_id in queued response".to_string())
-            })?;
-            
-            info!("⏳ Qwen3: Job queued with ID: {}, polling...", job_id);
-            
-            let base_endpoint = self.endpoint.trim_end_matches('/');
-            let status_url = format!("{}/status/{}", base_endpoint, job_id);
-            
-            // Poll for completion (max 60 seconds)
-            for attempt in 0..60 {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                
-                let status_response = client
-                    .get(&status_url)
-                    .header("Authorization", format!("Bearer {}", self.api_key))
-                    .send()
-                    .await
-                    .map_err(|e| TranscriptionError::EngineFailed(format!("Polling error: {}", e)))?;
-                
-                let status_json: serde_json::Value = status_response
-                    .json()
-                    .await
-                    .map_err(|e| TranscriptionError::EngineFailed(format!("Parse error: {}", e)))?;
-                
-                info!("📊 Qwen3: Poll attempt {} - status: {}", attempt + 1, status_json);
-                
-                if let Some(status) = status_json["status"].as_str() {
-                    match status {
-                        "completed" => {
-                            if let Some(text) = status_json["text"].as_str() {
-                                info!("✅ Qwen3: Transcription complete: '{}'", text);
-                                return Ok(TranscriptResult {
-                                    text: text.to_string(),
-                                    confidence: None,
-                                    is_partial: false,
-                                });
+            if status == "queued" || status == "processing" {
+                let job_id = json_response["job_id"].as_str().ok_or_else(|| {
+                    TranscriptionError::EngineFailed("Missing job_id in queued response".to_string())
+                })?;
+
+                info!("⏳ Qwen3: Job queued with ID: {}, polling...", job_id);
+
+                let status_url = format!("{}/status/{}", base_endpoint, job_id);
+
+                // Poll for completion (max 120 seconds)
+                for attempt in 0..120 {
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+                    let status_response = client
+                        .get(&status_url)
+                        .header("Authorization", format!("Bearer {}", self.api_key))
+                        .send()
+                        .await
+                        .map_err(|e| TranscriptionError::EngineFailed(format!("Polling error: {}", e)))?;
+
+                    let status_json: serde_json::Value = status_response
+                        .json()
+                        .await
+                        .map_err(|e| TranscriptionError::EngineFailed(format!("Parse error: {}", e)))?;
+
+                    info!("📊 Qwen3: Poll attempt {} - status: {}", attempt + 1, status_json);
+
+                    if let Some(status) = status_json["status"].as_str() {
+                        match status {
+                            "completed" => {
+                                if let Some(text) = status_json["text"].as_str() {
+                                    info!("✅ Qwen3: Transcription complete: '{}'", text);
+                                    return Ok(TranscriptResult {
+                                        text: text.to_string(),
+                                        confidence: None,
+                                        is_partial: false,
+                                    });
+                                }
                             }
+                            "failed" => {
+                                let error_msg = status_json["error"]
+                                    .as_str()
+                                    .unwrap_or("Unknown error");
+                                return Err(TranscriptionError::EngineFailed(format!(
+                                    "Qwen3 job failed: {}",
+                                    error_msg
+                                )));
+                            }
+                            _ => continue, // Still processing
                         }
-                        "failed" => {
-                            let error_msg = status_json["error"]
-                                .as_str()
-                                .unwrap_or("Unknown error");
-                            return Err(TranscriptionError::EngineFailed(
-                                format!("Qwen3 job failed: {}", error_msg)
-                            ));
-                        }
-                        _ => continue, // Still processing
                     }
                 }
+
+                return Err(TranscriptionError::EngineFailed(
+                    "Qwen3 job timed out after 120 seconds".to_string(),
+                ));
             }
-            
-            return Err(TranscriptionError::EngineFailed(
-                "Qwen3 job timed out after 60 seconds".to_string()
-            ));
-        }
         }
 
         // If not queued, try to extract text directly (sync response)
         let transcribed_text = if let Some(text) = json_response["text"].as_str() {
-        text.to_string()
+            text.to_string()
         } else if let Some(text) = json_response["result"].as_str() {
-        text.to_string()
+            text.to_string()
         } else if let Some(text) = json_response["transcription"].as_str() {
-        text.to_string()
+            text.to_string()
         } else {
-        warn!("⚠️ Qwen3: Unexpected response format: {}", json_response);
-        return Err(TranscriptionError::EngineFailed(
-            format!("Unexpected response format: missing 'text' field. Got: {}", json_response)
-        ));
+            warn!("⚠️ Qwen3: Unexpected response format: {}", json_response);
+            return Err(TranscriptionError::EngineFailed(format!(
+                "Unexpected response format: missing 'text' field. Got: {}",
+                json_response
+            )));
         };
 
         info!("✅ Qwen3: Transcription: '{}'", transcribed_text);
 
         Ok(TranscriptResult {
-        text: transcribed_text,
-        confidence: None,
-        is_partial: false,
-        });
+            text: transcribed_text,
+            confidence: None,
+            is_partial: false,
+        })
     }
 
     async fn is_model_loaded(&self) -> bool {
-        // Check if server is reachable
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(3))
             .build()
             .unwrap_or_default();
-        
+
         let base_endpoint = self.endpoint.trim_end_matches('/');
-        
-        // Try multiple endpoints
+
         let endpoints = vec![
             base_endpoint.to_string(),
             format!("{}/", base_endpoint),
             format!("{}/transcribe", base_endpoint),
         ];
-        
+
         for url in endpoints {
             match client.get(&url).send().await {
                 Ok(response) => {
                     let status = response.status();
-                    // Any of these statuses means the server is alive
                     if status.is_success() || status == 404 || status == 405 || status == 400 {
                         info!("✅ Qwen3 server reachable at {} (status: {})", url, status);
                         return true;
@@ -302,7 +300,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
                 Err(_) => continue,
             }
         }
-        
+
         warn!("❌ Qwen3 server not reachable at {}", self.endpoint);
         false
     }
@@ -316,10 +314,10 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
     }
 }
 
-// Add to Qwen3RemoteProvider impl
+// Standalone streaming function (outside impl block)
 pub async fn transcribe_stream(
     audio_chunks: Vec<Vec<f32>>,
-    provider: &Qwen3RemoteProvider,  // Pass provider as parameter
+    provider: &Qwen3RemoteProvider,
 ) -> Result<Vec<TranscriptResult>, TranscriptionError> {
     let mut results = Vec::new();
     for chunk in audio_chunks {
