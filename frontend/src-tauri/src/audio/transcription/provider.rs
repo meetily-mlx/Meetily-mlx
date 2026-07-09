@@ -135,10 +135,9 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .mime_str("audio/wav")
             .map_err(|e| TranscriptionError::EngineFailed(format!("Multipart error: {}", e)))?;
 
-        // ✅ USE SYNC ENDPOINT - expects "file" field, returns text directly
+        // Sync endpoint - expects "file" field
         let form = reqwest::multipart::Form::new().part("file", audio_part);
 
-        // ✅ Sync endpoint
         let base_endpoint = self.endpoint.trim_end_matches('/');
         let url = format!("{}/v1/audio/transcriptions", base_endpoint);
 
@@ -214,90 +213,6 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         })
     }
 
-    pub async fn transcribe_realtime(
-        &self,
-        audio_chunks: Vec<Vec<f32>>,
-    ) -> Result<Vec<TranscriptResult>, TranscriptionError> {
-        use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-        use futures_util::{SinkExt, StreamExt};
-        
-        // Build WebSocket URL
-        let host = self.endpoint
-            .trim_start_matches("http://")
-            .trim_start_matches("https://");
-        let ws_url = format!("ws://{}/ws/stream?api_key={}", host, self.api_key);
-        
-        info!("🔌 Qwen3: Connecting to WebSocket: {}", ws_url);
-        
-        let (ws_stream, _) = connect_async(&ws_url)
-            .await
-            .map_err(|e| TranscriptionError::EngineFailed(format!("WebSocket connection error: {}", e)))?;
-        
-        let (mut sender, mut receiver) = ws_stream.split();
-        let mut results = Vec::new();
-        
-        // Send each audio chunk
-        for (i, chunk) in audio_chunks.iter().enumerate() {
-            info!("📤 Qwen3: Sending chunk {} ({} samples)", i + 1, chunk.len());
-            
-            // Convert f32 to WAV bytes
-            let mut wav_bytes = Vec::new();
-            let spec = hound::WavSpec {
-                channels: 1,
-                sample_rate: 16000,
-                bits_per_sample: 16,
-                sample_format: hound::SampleFormat::Int,
-            };
-            {
-                let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut wav_bytes), spec)
-                    .map_err(|e| TranscriptionError::EngineFailed(format!("WAV error: {}", e)))?;
-                for &sample in chunk {
-                    let scaled = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-                    writer.write_sample(scaled)
-                        .map_err(|e| TranscriptionError::EngineFailed(format!("Write error: {}", e)))?;
-                }
-                writer.finalize()
-                    .map_err(|e| TranscriptionError::EngineFailed(format!("Finalize error: {}", e)))?;
-            }
-            
-            // Send as binary message
-            sender.send(Message::Binary(wav_bytes))
-                .await
-                .map_err(|e| TranscriptionError::EngineFailed(format!("Send error: {}", e)))?;
-        }
-        
-        // Close the connection
-        sender.send(Message::Close(None))
-            .await
-            .ok();
-        info!("🔌 Qwen3: WebSocket closed, waiting for results...");
-        
-        // Collect results
-        while let Some(msg) = receiver.next().await {
-            match msg {
-                Ok(Message::Text(text)) => {
-                    info!("📥 Qwen3: Received: {}", text);
-                    let json: serde_json::Value = serde_json::from_str(&text)
-                        .map_err(|e| TranscriptionError::EngineFailed(format!("Parse error: {}", e)))?;
-                    
-                    if let Some(text) = json["text"].as_str() {
-                        results.push(TranscriptResult {
-                            text: text.to_string(),
-                            confidence: None,
-                            is_partial: json["is_partial"].as_bool().unwrap_or(false),
-                        });
-                    }
-                }
-                Ok(Message::Close(_)) => break,
-                Err(e) => return Err(TranscriptionError::EngineFailed(format!("Receive error: {}", e))),
-                _ => {}
-            }
-        }
-        
-        info!("✅ Qwen3: Received {} results", results.len());
-        Ok(results)
-    }
-
     async fn is_model_loaded(&self) -> bool {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(3))
@@ -335,6 +250,28 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
 
     fn provider_name(&self) -> &'static str {
         "Qwen3RemoteProvider"
+    }
+}
+
+// Separate impl block for Qwen3-specific methods (not part of the trait)
+impl Qwen3RemoteProvider {
+    /// Real-time streaming transcription via WebSocket
+    /// Note: Requires tokio_tungstenite dependency
+    pub async fn transcribe_realtime(
+        &self,
+        audio_chunks: Vec<Vec<f32>>,
+    ) -> Result<Vec<TranscriptResult>, TranscriptionError> {
+        // This is a placeholder - WebSocket implementation requires tokio_tungstenite
+        // which needs to be added to Cargo.toml
+        info!("🔌 Qwen3: WebSocket real-time transcription not yet implemented");
+        
+        // Fallback: process each chunk synchronously
+        let mut results = Vec::new();
+        for chunk in audio_chunks {
+            let result = self.transcribe(chunk, None).await?;
+            results.push(result);
+        }
+        Ok(results)
     }
 }
 
