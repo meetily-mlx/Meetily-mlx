@@ -258,10 +258,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             
                             <div className="bg-blue-100/50 rounded p-3">
                                 <p className="text-xs text-blue-700 mb-2">
-                                    Start the Qwen3 server with:
+                                    Start the Qwen3 server by typing the following in mac terminal:
                                 </p>
                                 <code className="block bg-blue-200 px-3 py-2 rounded text-xs font-mono text-blue-900">
-                                    mlx-qwen3-asr serve --api-key {apiKey || 'local-secret-123'} --port 8765
+                                    mlx-qwen3-asr serve --api-key {apiKey || 'local-secret-123'} --port 8765 --model mlx-community/Qwen3-ASR-0.6B-8bit
                                 </code>
                             </div>
 
@@ -269,7 +269,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 onClick={testQwen3Connection}
                                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm"
                             >
-                                🔌 Test Connection
+                                🔌 Test Connection (404 Not Found means connection is working)
                             </Button>
                         </div>
                     </div>
