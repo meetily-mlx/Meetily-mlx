@@ -135,13 +135,14 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .mime_str("audio/wav")
             .map_err(|e| TranscriptionError::EngineFailed(format!("Multipart error: {}", e)))?;
 
-        let form = reqwest::multipart::Form::new().part("audio", audio_part);
+        // ✅ USE SYNC ENDPOINT - expects "file" field, returns text directly
+        let form = reqwest::multipart::Form::new().part("file", audio_part);
 
-        // 3. MLX Qwen3 uses /transcribe endpoint
+        // ✅ Sync endpoint
         let base_endpoint = self.endpoint.trim_end_matches('/');
-        let url = format!("{}/transcribe", base_endpoint);
+        let url = format!("{}/v1/audio/transcriptions", base_endpoint);
 
-        info!("📤 Qwen3: Sending request to: {}", url);
+        info!("📤 Qwen3 (sync): Sending request to: {}", url);
 
         let response = client
             .post(&url)
@@ -177,7 +178,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             return Err(TranscriptionError::EngineFailed(msg));
         }
 
-        // Parse the response
+        // Parse the response - sync returns text directly
         let json_response = response
             .json::<serde_json::Value>()
             .await
@@ -189,68 +190,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
 
         info!("📥 Qwen3: Response: {}", json_response);
 
-        // Check if this is an async queued job
-        if let Some(status) = json_response["status"].as_str() {
-            if status == "queued" || status == "processing" {
-                let job_id = json_response["job_id"].as_str().ok_or_else(|| {
-                    TranscriptionError::EngineFailed("Missing job_id in queued response".to_string())
-                })?;
-
-                info!("⏳ Qwen3: Job queued with ID: {}, polling...", job_id);
-
-                let status_url = format!("{}/status/{}", base_endpoint, job_id);
-
-                // Poll for completion (max 120 seconds)
-                for attempt in 0..120 {
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-                    let status_response = client
-                        .get(&status_url)
-                        .header("Authorization", format!("Bearer {}", self.api_key))
-                        .send()
-                        .await
-                        .map_err(|e| TranscriptionError::EngineFailed(format!("Polling error: {}", e)))?;
-
-                    let status_json: serde_json::Value = status_response
-                        .json()
-                        .await
-                        .map_err(|e| TranscriptionError::EngineFailed(format!("Parse error: {}", e)))?;
-
-                    info!("📊 Qwen3: Poll attempt {} - status: {}", attempt + 1, status_json);
-
-                    if let Some(status) = status_json["status"].as_str() {
-                        match status {
-                            "completed" => {
-                                if let Some(text) = status_json["text"].as_str() {
-                                    info!("✅ Qwen3: Transcription complete: '{}'", text);
-                                    return Ok(TranscriptResult {
-                                        text: text.to_string(),
-                                        confidence: None,
-                                        is_partial: false,
-                                    });
-                                }
-                            }
-                            "failed" => {
-                                let error_msg = status_json["error"]
-                                    .as_str()
-                                    .unwrap_or("Unknown error");
-                                return Err(TranscriptionError::EngineFailed(format!(
-                                    "Qwen3 job failed: {}",
-                                    error_msg
-                                )));
-                            }
-                            _ => continue, // Still processing
-                        }
-                    }
-                }
-
-                return Err(TranscriptionError::EngineFailed(
-                    "Qwen3 job timed out after 120 seconds".to_string(),
-                ));
-            }
-        }
-
-        // If not queued, try to extract text directly (sync response)
+        // Extract text directly (sync response)
         let transcribed_text = if let Some(text) = json_response["text"].as_str() {
             text.to_string()
         } else if let Some(text) = json_response["result"].as_str() {
