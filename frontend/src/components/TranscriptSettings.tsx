@@ -120,8 +120,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     endpoint: qwenEndpoint  // ← ADD THIS
                 });
                 console.log('✅ Qwen3 config saved:', { endpoint: qwenEndpoint, apiKey: apiKey || 'local-secret-123' });
+                alert('✅ Qwen3 settings saved successfully!');
             } catch (error) {
                 console.error('Failed to save Qwen3 config:', error);
+                alert('❌ Failed to save Qwen3 settings. Check console for details.');
             }
         }
     };
@@ -180,13 +182,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             <SelectContent>
                                 <SelectItem value="parakeet">⚡ Parakeet (Recommended - Real-time / Accurate)</SelectItem>
                                 <SelectItem value="localWhisper">🏠 Local Whisper (High Accuracy)</SelectItem>
-                                <SelectItem value="qwen3">🚀 Qwen3 (MLX - Apple
-                                
-                                
-                                
-                                
-                                
-                                 Silicon)</SelectItem>
+                                <SelectItem value="qwen3">🚀 Qwen3 (MLX - Apple Silicon)</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -271,6 +267,18 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             >
                                 🔌 Test Connection (404 Not Found means connection is working)
                             </Button>
+
+                            {/* ✅ ADDED: Manual Save Button */}
+                            <Button
+                                onClick={saveQwen3Config}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white text-sm"
+                            >
+                                💾 Save Qwen3 Settings
+                            </Button>
+                            
+                            <p className="text-xs text-gray-500 text-center mt-1">
+                                Settings are auto-saved when you select Qwen3 or change the API key. Use this button to save manually.
+                            </p>
                         </div>
                     </div>
                 )}
