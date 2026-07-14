@@ -50,7 +50,7 @@ impl DatabaseManager {
         if !app_data_dir.exists() {
             fs::create_dir_all(&app_data_dir).map_err(|e| sqlx::Error::Io(e))?;
         }
-
+    
         // Define database paths
         let tauri_db_path = app_data_dir
             .join("meeting_minutes.sqlite")
@@ -61,18 +61,27 @@ impl DatabaseManager {
             .join("meeting_minutes.db")
             .to_string_lossy()
             .to_string();
-
+    
         // WAL file paths for defensive cleanup
         let wal_path = app_data_dir.join("meeting_minutes.sqlite-wal");
         let shm_path = app_data_dir.join("meeting_minutes.sqlite-shm");
-
+    
         log::info!("Tauri DB path: {}", tauri_db_path);
         log::info!("Legacy backend DB path: {}", backend_db_path);
-
+    
         // Try to open database with defensive WAL handling
         match Self::new(&tauri_db_path, &backend_db_path).await {
             Ok(db_manager) => {
                 log::info!("Database opened successfully");
+                
+                // ✅ INITIALIZE KV_STORE TABLE
+                if let Err(e) = db_manager.init_kv_store().await {
+                    log::warn!("Failed to initialize kv_store: {}", e);
+                    // Non-fatal - continue anyway
+                } else {
+                    log::info!("✅ kv_store initialized successfully");
+                }
+                
                 Ok(db_manager)
             }
             Err(e) => {
@@ -81,7 +90,7 @@ impl DatabaseManager {
                 if error_msg.contains("malformed") || error_msg.contains("corrupt") {
                     log::warn!("Database appears corrupted, likely due to orphaned WAL file. Attempting recovery...");
                     log::warn!("Error details: {}", error_msg);
-
+    
                     // Delete potentially corrupted WAL/SHM files
                     if wal_path.exists() {
                         match fs::remove_file(&wal_path) {
@@ -95,12 +104,20 @@ impl DatabaseManager {
                             Err(e) => log::warn!("Failed to remove SHM file: {}", e),
                         }
                     }
-
+    
                     // Retry connection without WAL files
                     log::info!("Retrying database connection after WAL cleanup...");
                     match Self::new(&tauri_db_path, &backend_db_path).await {
                         Ok(db_manager) => {
                             log::info!("Database opened successfully after WAL recovery");
+                            
+                            // ✅ INITIALIZE KV_STORE TABLE (even on retry)
+                            if let Err(e) = db_manager.init_kv_store().await {
+                                log::warn!("Failed to initialize kv_store: {}", e);
+                            } else {
+                                log::info!("✅ kv_store initialized successfully");
+                            }
+                            
                             Ok(db_manager)
                         }
                         Err(retry_err) => {
@@ -203,6 +220,36 @@ impl DatabaseManager {
         self.pool.close().await;
         log::info!("Database connection pool closed");
 
+        Ok(())
+    }
+
+    // Add this function to the DatabaseManager impl block
+    pub async fn init_kv_store(&self) -> Result<(), sqlx::Error> {
+        log::info!("📦 Creating kv_store table...");
+        
+        // Create kv_store table if it doesn't exist
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS kv_store (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            "#
+        )
+        .execute(self.pool())
+        .await?;
+
+        // Insert default Qwen3 endpoint if not exists
+        sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO kv_store (key, value) 
+            VALUES ('qwen3_endpoint', 'http://127.0.0.1:8765')
+            "#
+        )
+        .execute(self.pool())
+        .await?;
+
+        log::info!("✅ kv_store table created successfully");
         Ok(())
     }
 }
