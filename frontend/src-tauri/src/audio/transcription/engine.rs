@@ -54,7 +54,9 @@ impl TranscriptionEngine {
 
 /// Helper function to get Qwen3 endpoint from settings or use default
 async fn get_qwen3_endpoint<R: Runtime>(app: &AppHandle<R>) -> String {
-    let pool = app.state::<crate::state::AppState>().db_manager.pool();
+    // Get state reference first to avoid temporary value issues
+    let state = app.state::<crate::state::AppState>();
+    let pool = state.db_manager.pool();
     
     match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
         Ok(Some(endpoint)) => {
@@ -70,7 +72,8 @@ async fn get_qwen3_endpoint<R: Runtime>(app: &AppHandle<R>) -> String {
 
 /// Helper function to get Qwen3 API key from settings or use default
 async fn get_qwen3_api_key<R: Runtime>(app: &AppHandle<R>) -> String {
-    let pool = app.state::<crate::state::AppState>().db_manager.pool();
+    let state = app.state::<crate::state::AppState>();
+    let pool = state.db_manager.pool();
     
     match SettingsRepository::get_transcript_api_key(pool, "qwen3").await {
         Ok(Some(key)) => {
@@ -268,7 +271,8 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                 endpoint_url
             } else {
                 // Empty string, try settings
-                let pool = app.state::<crate::state::AppState>().db_manager.pool();
+                let state = app.state::<crate::state::AppState>();
+                let pool = state.db_manager.pool();
                 match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
                     Ok(Some(endpoint_url)) => {
                         info!("📍 Found endpoint in settings: {}", endpoint_url);
@@ -282,7 +286,8 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             }
         } else {
             // No endpoint in config, try settings
-            let pool = app.state().db_manager.pool();
+            let state = app.state::<crate::state::AppState>();
+            let pool = state.db_manager.pool();
             match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
                 Ok(Some(endpoint_url)) => {
                     info!("📍 Found endpoint in settings: {}", endpoint_url);
