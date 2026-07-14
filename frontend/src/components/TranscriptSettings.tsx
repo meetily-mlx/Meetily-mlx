@@ -29,22 +29,60 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const [uiProvider, setUiProvider] = useState<TranscriptModelProps['provider']>(transcriptModelConfig.provider);
     // UPDATE: Add state for Qwen3 endpoint
     const [qwenEndpoint, setQwenEndpoint] = useState<string>('http://127.0.0.1:8765');
+    const [isLoadingEndpoint, setIsLoadingEndpoint] = useState<boolean>(false);
 
     // Sync uiProvider when backend config changes
     useEffect(() => {
         setUiProvider(transcriptModelConfig.provider);
-        // Load saved endpoint if exists
-        const loadQwenEndpoint = async () => {
-            try {
-                // You might want to save/load this from config
-                const saved = localStorage.getItem('qwen3-endpoint');
-                if (saved) setQwenEndpoint(saved);
-            } catch (e) {
-                console.error('Failed to load Qwen3 endpoint:', e);
-            }
-        };
-        loadQwenEndpoint();
+        // Load saved endpoint from backend when provider changes to qwen3
+        if (transcriptModelConfig.provider === 'qwen3') {
+            loadQwenEndpointFromBackend();
+        }
     }, [transcriptModelConfig.provider]);
+
+    // NEW: Load endpoint from backend on mount
+    useEffect(() => {
+        // If qwen3 is already selected on mount, load endpoint
+        if (uiProvider === 'qwen3') {
+            loadQwenEndpointFromBackend();
+        }
+    }, []);
+
+    // NEW: Function to load endpoint from backend
+    const loadQwenEndpointFromBackend = async () => {
+        if (isLoadingEndpoint) return;
+        setIsLoadingEndpoint(true);
+        try {
+            console.log('📡 Loading Qwen3 endpoint from backend...');
+            const config = await invoke('api_get_transcript_config') as any;
+            console.log('📡 Backend config:', config);
+            
+            if (config && config.endpoint) {
+                console.log('✅ Loaded endpoint from backend:', config.endpoint);
+                setQwenEndpoint(config.endpoint);
+                // Also save to localStorage as backup
+                localStorage.setItem('qwen3-endpoint', config.endpoint);
+            } else {
+                // Fallback to localStorage then default
+                const saved = localStorage.getItem('qwen3-endpoint');
+                if (saved) {
+                    console.log('📡 Loaded endpoint from localStorage:', saved);
+                    setQwenEndpoint(saved);
+                } else {
+                    console.log('📡 Using default endpoint: http://127.0.0.1:8765');
+                }
+            }
+        } catch (error) {
+            console.error('❌ Failed to load Qwen3 endpoint from backend:', error);
+            // Try localStorage as fallback
+            const saved = localStorage.getItem('qwen3-endpoint');
+            if (saved) {
+                setQwenEndpoint(saved);
+            }
+        } finally {
+            setIsLoadingEndpoint(false);
+        }
+    };
 
     useEffect(() => {
         if (transcriptModelConfig.provider === 'localWhisper' || transcriptModelConfig.provider === 'parakeet' || transcriptModelConfig.provider === 'qwen3') {
@@ -112,19 +150,43 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const saveQwen3Config = async () => {
         if (uiProvider === 'qwen3') {
             try {
-                // Save to backend with endpoint
+                console.log('💾 Saving Qwen3 config to backend:', { 
+                    endpoint: qwenEndpoint, 
+                    apiKey: apiKey || 'local-secret-123' 
+                });
+                
                 await invoke('api_save_transcript_config', {
                     provider: 'qwen3',
                     model: 'Qwen/Qwen3-ASR-0.6B',
                     apiKey: apiKey || 'local-secret-123',
-                    endpoint: qwenEndpoint  // ← ADD THIS
+                    endpoint: qwenEndpoint
                 });
-                console.log('✅ Qwen3 config saved:', { endpoint: qwenEndpoint, apiKey: apiKey || 'local-secret-123' });
+                
+                console.log('✅ Qwen3 config saved successfully');
+                // Also save to localStorage as backup
+                localStorage.setItem('qwen3-endpoint', qwenEndpoint);
                 alert('✅ Qwen3 settings saved successfully!');
             } catch (error) {
-                console.error('Failed to save Qwen3 config:', error);
+                console.error('❌ Failed to save Qwen3 config:', error);
                 alert('❌ Failed to save Qwen3 settings. Check console for details.');
             }
+        }
+    };
+
+    // NEW: Check what endpoint is saved in backend
+    const checkSavedEndpoint = async () => {
+        try {
+            console.log('🔍 Checking saved endpoint...');
+            const config = await invoke('api_get_transcript_config') as any;
+            console.log('📡 Current transcript config from backend:', config);
+            if (config && config.endpoint) {
+                alert(`Backend endpoint: ${config.endpoint}`);
+            } else {
+                alert('No endpoint found in backend');
+            }
+        } catch (error) {
+            console.error('❌ Failed to get config:', error);
+            alert('Failed to get config from backend');
         }
     };
 
@@ -133,7 +195,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         if (uiProvider !== 'qwen3') return;
         
         try {
-            console.log('🔍 Testing Qwen3 connection...');
+            console.log('🔍 Testing Qwen3 connection to:', qwenEndpoint);
             const result = await invoke('api_test_qwen3_connection', {
                 endpoint: qwenEndpoint,
                 apiKey: apiKey || 'local-secret-123'
@@ -169,8 +231,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                         model: 'Qwen/Qwen3-ASR-0.6B',
                                         apiKey: 'local-secret-123'
                                     });
-                                    // Auto-save Qwen3 config
-                                    setTimeout(() => saveQwen3Config(), 100);
+                                    // Load endpoint from backend first
+                                    loadQwenEndpointFromBackend();
+                                    // Auto-save Qwen3 config after loading
+                                    setTimeout(() => saveQwen3Config(), 500);
                                 } else if (provider !== 'localWhisper' && provider !== 'parakeet') {
                                     fetchApiKey(provider);
                                 }
@@ -241,14 +305,16 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 <Input
                                     value={qwenEndpoint}
                                     onChange={(e) => {
-                                        setQwenEndpoint(e.target.value);
-                                        localStorage.setItem('qwen3-endpoint', e.target.value);
+                                        const newEndpoint = e.target.value;
+                                        setQwenEndpoint(newEndpoint);
+                                        localStorage.setItem('qwen3-endpoint', newEndpoint);
                                     }}
                                     className="mt-1 text-sm bg-white border-blue-300 focus:ring-blue-500"
-                                    placeholder="http://127.0.0.1:8765"
+                                    placeholder="http://127.0.0.1:8765 <- this is for Mac Meetily (Insert Mac IP address as server endpoint if using Qwen3 with Windows Meetily app)"
+                                    disabled={isLoadingEndpoint}
                                 />
                                 <p className="text-xs text-blue-600 mt-1">
-                                    Default: http://127.0.0.1:8765
+                                    Current: {qwenEndpoint}
                                 </p>
                             </div>
                             
@@ -275,9 +341,17 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             >
                                 💾 Save Qwen3 Settings
                             </Button>
+
+                            {/* NEW: Check saved endpoint button */}
+                            <Button
+                                onClick={checkSavedEndpoint}
+                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-sm"
+                            >
+                                🔍 Check Saved Endpoint
+                            </Button>
                             
                             <p className="text-xs text-gray-500 text-center mt-1">
-                                Settings are auto-saved when you select Qwen3 or change the API key. Use this button to save manually.
+                                Use the Save button to use Qwen3 or API connection
                             </p>
                         </div>
                     </div>
