@@ -624,8 +624,15 @@ pub async fn api_get_transcript_config<R: Runtime>(
                     let endpoint = if config.provider == "qwen3" {
                         // Try to get from database first, fallback to default
                         match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
-                            Ok(Some(endpoint)) => Some(endpoint),
-                            _ => Some("http://127.0.0.1:8765".to_string())
+                            Ok(Some(endpoint)) => {
+                                log_info!("✅ Found saved Qwen3 endpoint: {}", endpoint);
+                                Some(endpoint)
+                            }
+                            _ => {
+                                log_info!("ℹ️ No saved endpoint found, using default from environment or config");
+                                // You could read from env here: std::env::var("QWEN3_ENDPOINT").ok()
+                                Some("http://127.0.0.1:8765".to_string())
+                            }
                         }
                     } else {
                         None
@@ -654,7 +661,7 @@ pub async fn api_get_transcript_config<R: Runtime>(
                 provider: "parakeet".to_string(),
                 model: crate::config::DEFAULT_PARAKEET_MODEL.to_string(),
                 api_key: None,
-                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
+                endpoint: None,  // Don't set default here - let it be empty
             }))
         }
         Err(e) => {

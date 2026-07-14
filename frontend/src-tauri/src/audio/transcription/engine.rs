@@ -3,6 +3,7 @@
 // TranscriptionEngine enum and model initialization/validation logic.
 
 use super::provider::{Qwen3RemoteProvider, TranscriptionProvider};
+use crate::database::repositories::setting::SettingsRepository;
 use log::{info, warn};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime};
@@ -51,6 +52,38 @@ impl TranscriptionEngine {
 // MODEL VALIDATION AND INITIALIZATION
 // ============================================================================
 
+/// Helper function to get Qwen3 endpoint from settings or use default
+async fn get_qwen3_endpoint<R: Runtime>(app: &AppHandle<R>) -> String {
+    let pool = app.state().db_manager.pool();
+    
+    match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
+        Ok(Some(endpoint)) => {
+            info!("📍 Found saved Qwen3 endpoint: {}", endpoint);
+            endpoint
+        }
+        _ => {
+            info!("ℹ️ No saved endpoint found, using default");
+            "http://127.0.0.1:8765".to_string()
+        }
+    }
+}
+
+/// Helper function to get Qwen3 API key from settings or use default
+async fn get_qwen3_api_key<R: Runtime>(app: &AppHandle<R>) -> String {
+    let pool = app.state().db_manager.pool();
+    
+    match SettingsRepository::get_transcript_api_key(pool, "qwen3").await {
+        Ok(Some(key)) => {
+            info!("📍 Found saved Qwen3 API key");
+            key
+        }
+        _ => {
+            info!("ℹ️ No saved API key found, using default");
+            "local-secret-123".to_string()
+        }
+    }
+}
+
 /// Validate that transcription models are ready before starting recording
 pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // Get provider configuration
@@ -70,20 +103,24 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         }
         Ok(None) => {
             info!("📝 No transcript config found, defaulting to qwen3");
+            let endpoint = get_qwen3_endpoint(app).await;
+            let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
                 provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
-                api_key: Some("local-secret-123".to_string()),
-                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
+                api_key: Some(api_key),
+                endpoint: Some(endpoint),
             }
         }
         Err(e) => {
             warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
+            let endpoint = get_qwen3_endpoint(app).await;
+            let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
                 provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
-                api_key: Some("local-secret-123".to_string()),
-                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD DEFAULT
+                api_key: Some(api_key),
+                endpoint: Some(endpoint),
             }
         }
     };
@@ -195,20 +232,24 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         }
         Ok(None) => {
             info!("📝 No transcript config found, defaulting to qwen3");
+            let endpoint = get_qwen3_endpoint(app).await;
+            let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
                 provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
-                api_key: Some("local-secret-123".to_string()),
-                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD THIS
+                api_key: Some(api_key),
+                endpoint: Some(endpoint),
             }
         }
         Err(e) => {
             warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
+            let endpoint = get_qwen3_endpoint(app).await;
+            let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
                 provider: "qwen3".to_string(),
                 model: "Qwen/Qwen3-ASR-0.6B".to_string(),
-                api_key: Some("local-secret-123".to_string()),
-                endpoint: Some("http://127.0.0.1:8765".to_string()),  // ← ADD THIS
+                api_key: Some(api_key),
+                endpoint: Some(endpoint),
             }
         }
     };
@@ -217,12 +258,42 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     if config.provider == "qwen3" {
         info!("🎯 Using Qwen3 ASR (selected in settings)");
         
-        // Use API key from config, or default
+        // Use API key from config, or get from settings
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
-        // Use endpoint from config, or default
-        let endpoint = config.endpoint
-            .clone()
-            .unwrap_or_else(|| "http://127.0.0.1:8765".to_string());
+        
+        // Use endpoint from config, or get from settings
+        let endpoint = if let Some(endpoint_url) = config.endpoint.clone() {
+            if !endpoint_url.is_empty() {
+                info!("📍 Using endpoint from config: {}", endpoint_url);
+                endpoint_url
+            } else {
+                // Empty string, try settings
+                let pool = app.state().db_manager.pool();
+                match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
+                    Ok(Some(endpoint_url)) => {
+                        info!("📍 Found endpoint in settings: {}", endpoint_url);
+                        endpoint_url
+                    }
+                    _ => {
+                        warn!("⚠️ No endpoint found, using default");
+                        "http://127.0.0.1:8765".to_string()
+                    }
+                }
+            }
+        } else {
+            // No endpoint in config, try settings
+            let pool = app.state().db_manager.pool();
+            match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
+                Ok(Some(endpoint_url)) => {
+                    info!("📍 Found endpoint in settings: {}", endpoint_url);
+                    endpoint_url
+                }
+                _ => {
+                    warn!("⚠️ No endpoint found, using default");
+                    "http://127.0.0.1:8765".to_string()
+                }
+            }
+        };
         
         info!("📍 Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
         
@@ -502,4 +573,3 @@ pub async fn get_or_init_whisper<R: Runtime>(
 
     Ok(engine)
 }
-
