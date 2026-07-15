@@ -115,7 +115,6 @@ jobs:
           args: ""
 
       - name: Upload artifacts to release (macOS)
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -219,7 +218,6 @@ jobs:
           args: ""
 
       - name: Upload artifacts to release (Windows)
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: |
