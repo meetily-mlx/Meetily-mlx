@@ -101,17 +101,17 @@ jobs:
           key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}    
 
       - name: Build with Tauri (macOS)
-        id: tauri-build-mac
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Removed signing env vars
-          MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-        with:
-          projectPath: frontend
-          args: ""
+          id: tauri-build-mac
+          uses: tauri-apps/tauri-action@v0
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}  # ← ADD THIS LINE
+            MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
+            SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+            SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          with:
+            projectPath: frontend
+            args: ""
 
       - name: Upload artifacts to release (macOS)
         if: github.event_name == 'release'
@@ -208,7 +208,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Removed signing env vars
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}  # ← ADD THIS LINE
           MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
