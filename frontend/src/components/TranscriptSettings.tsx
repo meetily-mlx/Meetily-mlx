@@ -146,6 +146,26 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         }
     };
 
+    // Add this function
+    const debugDatabase = async () => {
+        try {
+            const result = await invoke('api_debug_database');
+            console.log('🔍 Database debug:', result);
+            alert(JSON.stringify(result, null, 2));
+        } catch (error) {
+            console.error('❌ Debug failed:', error);
+            alert('Debug failed: ' + error);
+        }
+    };
+
+    // Add this button in the Qwen3 section
+    <Button
+        onClick={debugDatabase}
+        className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm"
+    >
+        🔍 Debug Database
+    </Button>
+
     // UPDATE: Save Qwen3 configuration to backend
     const saveQwen3Config = async () => {
         if (uiProvider === 'qwen3') {

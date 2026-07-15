@@ -722,6 +722,54 @@ pub async fn api_save_transcript_config<R: Runtime>(
     )
 }
 
+/// Debug: Check what's in the database
+#[tauri::command]
+pub async fn api_debug_database(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let pool = state.db_manager.pool();
+    let mut result = serde_json::json!({});
+    
+    // Check if kv_store table exists
+    let table_exists = sqlx::query(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='kv_store'"
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| e.to_string())?
+    .is_some();
+    
+    result["kv_store_exists"] = serde_json::Value::Bool(table_exists);
+    
+    if table_exists {
+        // Check if endpoint is saved
+        let row = sqlx::query(
+            "SELECT value FROM kv_store WHERE key = 'qwen3_endpoint'"
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        
+        if let Some(row) = row {
+            let value: String = row.get(0);
+            result["endpoint"] = serde_json::Value::String(value);
+        } else {
+            result["endpoint"] = serde_json::Value::Null;
+        }
+    }
+    
+    // Check transcript_settings
+    let config = SettingsRepository::get_transcript_config(pool).await
+        .map_err(|e| e.to_string())?;
+    
+    if let Some(c) = config {
+        result["transcript_provider"] = serde_json::Value::String(c.provider);
+        result["transcript_model"] = serde_json::Value::String(c.model);
+    }
+    
+    Ok(result)
+}
+
 #[tauri::command]
 pub async fn api_get_transcript_api_key<R: Runtime>(
     _app: AppHandle<R>,
