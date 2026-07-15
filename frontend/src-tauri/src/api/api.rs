@@ -724,12 +724,6 @@ pub async fn api_save_transcript_config<R: Runtime>(
     Ok(serde_json::json!({ "status": "success", "message": "Transcript configuration saved successfully" }))
 }
 
-    log_info!("Successfully saved transcript configuration.");
-    Ok(
-        serde_json::json!({ "status": "success", "message": "Transcript configuration saved successfully" }),
-    )
-}
-
 /// Debug: Check what's in the database
 #[tauri::command]
 pub async fn api_debug_database(
