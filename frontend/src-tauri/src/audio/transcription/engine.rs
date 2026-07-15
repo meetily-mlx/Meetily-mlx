@@ -264,36 +264,27 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         // Use API key from config, or get from settings
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
         
-        // Use endpoint from config, or get from settings
-        let endpoint = if let Some(endpoint_url) = config.endpoint.clone() {
-            if !endpoint_url.is_empty() {
-                info!("📍 Using endpoint from config: {}", endpoint_url);
+        // 🔥 FIX: ALWAYS get endpoint from settings, don't rely on config
+        let state = app.state::<crate::state::AppState>();
+        let pool = state.db_manager.pool();
+        
+        // Try to get endpoint from kv_store
+        let endpoint = match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
+            Ok(Some(endpoint_url)) => {
+                info!("📍 Found endpoint in settings: {}", endpoint_url);
                 endpoint_url
-            } else {
-                // Empty string, try settings
-                let state = app.state::<crate::state::AppState>();
-                let pool = state.db_manager.pool();
-                match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
-                    Ok(Some(endpoint_url)) => {
-                        info!("📍 Found endpoint in settings: {}", endpoint_url);
+            }
+            _ => {
+                // Fallback: check if config has endpoint
+                if let Some(endpoint_url) = config.endpoint.clone() {
+                    if !endpoint_url.is_empty() {
+                        info!("📍 Using endpoint from config: {}", endpoint_url);
                         endpoint_url
-                    }
-                    _ => {
+                    } else {
                         warn!("⚠️ No endpoint found, using default");
                         "http://127.0.0.1:8765".to_string()
                     }
-                }
-            }
-        } else {
-            // No endpoint in config, try settings
-            let state = app.state::<crate::state::AppState>();
-            let pool = state.db_manager.pool();
-            match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
-                Ok(Some(endpoint_url)) => {
-                    info!("📍 Found endpoint in settings: {}", endpoint_url);
-                    endpoint_url
-                }
-                _ => {
+                } else {
                     warn!("⚠️ No endpoint found, using default");
                     "http://127.0.0.1:8765".to_string()
                 }
@@ -302,10 +293,10 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         
         info!("📍 Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
         
-        // ✅ Create the provider and return it immediately
+        // ✅ Create the provider with the correct endpoint
         let qwen_provider = Arc::new(Qwen3RemoteProvider {
-            endpoint,
-            api_key,
+            endpoint: endpoint.clone(),
+            api_key: api_key.clone(),
         });
         
         // ✅ Double-check the server is reachable
@@ -313,7 +304,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             info!("✅ Qwen3 server is reachable, returning engine");
             return Ok(TranscriptionEngine::Provider(qwen_provider));
         } else {
-            warn!("⚠️ Qwen3 server is not reachable, but continuing anyway");
+            warn!("⚠️ Qwen3 server is not reachable at {}, but continuing anyway", endpoint);
             // Still return the provider - let the actual transcription fail if needed
             return Ok(TranscriptionEngine::Provider(qwen_provider));
         }
