@@ -1,12 +1,14 @@
-name: Cloud Build Meetily Mac App
+name: Cloud Build Meetily App
 
 on:
   push:
     branches:
       - main
+  release:
+    types: [created]  # Trigger on release creation
 
 jobs:
-  build:
+  build-mac:
     permissions:
       contents: write
     runs-on: macos-latest
@@ -55,17 +57,13 @@ jobs:
 
       - name: Setup macOS SDK and Xcode
         run: |
-          # Use Xcode 26.3.0 consistently
           sudo xcode-select -s "/Applications/Xcode_26.3.0.app/Contents/Developer"
           SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
           echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
           echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> $GITHUB_ENV
-          
-          # Force the compiler toolchain
           XCODE_PATH="/Applications/Xcode_26.3.0.app/Contents/Developer"
           echo "CC=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc" >> $GITHUB_ENV
           echo "CXX=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++" >> $GITHUB_ENV
-          
           echo "Xcode: $(xcodebuild -version | head -1)"
           echo "SDKROOT: $SDKROOT"
 
@@ -102,13 +100,12 @@ jobs:
           path: frontend/src-tauri/binaries/ffmpeg-*
           key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}    
 
-      - name: Build with Tauri
-        id: tauri-build
+      - name: Build with Tauri (macOS)
+        id: tauri-build-mac
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Removed signing env vars
           MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -116,11 +113,115 @@ jobs:
           projectPath: frontend
           args: ""
 
-      - name: Upload artifacts (macOS)
-        uses: actions/upload-artifact@v4
+      - name: Upload artifacts to release (macOS)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
         with:
-          name: meetily-mac-app
-          path: |
+          files: |
             target/release/bundle/dmg/*.dmg
             target/release/bundle/macos/*.app
-          retention-days: 30
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tauri.conf.json
+        id: get-version
+        shell: bash
+        run: |
+          VERSION=$(grep -o '"version": "[^"]*"' frontend/src-tauri/tauri.conf.json | cut -d'"' -f4)
+          echo "Application version from tauri.conf.json: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' 
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: 'x86_64-pc-windows-msvc'
+
+      - name: Install Windows build tools
+        run: |
+          # Install LLVM for Windows
+          choco install llvm -y
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: windows-latest-x86_64-pc-windows-msvc-vulkan-v2
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          pnpm install
+
+      - name: Build llama-helper sidecar (Windows)
+        shell: bash
+        run: |
+          echo "Building llama-helper sidecar for Windows..."
+          cargo build --release -p llama-helper
+          TARGET="x86_64-pc-windows-msvc"
+          mkdir -p frontend/src-tauri/binaries
+          cp target/release/llama-helper.exe frontend/src-tauri/binaries/llama-helper-${TARGET}.exe
+          echo "Copied llama-helper to frontend/src-tauri/binaries/llama-helper-${TARGET}.exe"
+          ls -la frontend/src-tauri/binaries/
+
+      - name: Cache FFmpeg binary
+        uses: actions/cache@v4
+        with:
+          path: frontend/src-tauri/binaries/ffmpeg-*
+          key: ${{ runner.os }}-ffmpeg-${{ hashFiles('frontend/src-tauri/build.rs', 'frontend/src-tauri/build/ffmpeg.rs') }}    
+
+      - name: Build with Tauri (Windows)
+        id: tauri-build-windows
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Removed signing env vars
+          MEETILY_RSA_PUBLIC_KEY: ${{ secrets.MEETILY_RSA_PUBLIC_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        with:
+          projectPath: frontend
+          args: ""
+
+      - name: Upload artifacts to release (Windows)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

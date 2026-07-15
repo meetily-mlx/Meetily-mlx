@@ -482,7 +482,7 @@ pub async fn api_get_model_config<R: Runtime>(
     match SettingsRepository::get_model_config(pool).await {
         Ok(Some(config)) => {
             log_info!(
-                "✅ Found model config in database: provider={}, model={}, whisperModel={}, ollamaEndpoint={:?}",
+                "Found model config in database: provider={}, model={}, whisperModel={}, ollamaEndpoint={:?}",
                 &config.provider,
                 &config.model,
                 &config.whisper_model,
@@ -514,7 +514,7 @@ pub async fn api_get_model_config<R: Runtime>(
             Ok(None)
         }
         Err(e) => {
-            log_error!("❌ Failed to get model config from database: {}", e);
+            log_error!("Failed to get model config from database: {}", e);
             Err(e.to_string())
         }
     }
@@ -532,7 +532,7 @@ pub async fn api_save_model_config<R: Runtime>(
     _auth_token: Option<String>,
 ) -> Result<serde_json::Value, String> {
     log_info!(
-        "💾 api_save_model_config called (native): provider='{}', model='{}', whisperModel='{}', ollamaEndpoint={:?}",
+        "api_save_model_config called (native): provider='{}', model='{}', whisperModel='{}', ollamaEndpoint={:?}",
         &provider,
         &model,
         &whisper_model,
@@ -549,16 +549,16 @@ pub async fn api_save_model_config<R: Runtime>(
     )
     .await
     {
-        log_error!("❌ Failed to save model config to database: {}", e);
+        log_error!("Failed to save model config to database: {}", e);
         return Err(e.to_string());
     }
 
     // Skip API key saving for custom-openai provider (it uses customOpenAIConfig JSON instead)
     if let Some(key) = api_key {
         if !key.is_empty() && provider != "custom-openai" {
-            log_info!("🔑 API key provided, saving...");
+            log_info!("API key provided, saving...");
             if let Err(e) = SettingsRepository::save_api_key(pool, &provider, &key).await {
-                log_error!("❌ Failed to save API key: {}", e);
+                log_error!("Failed to save API key: {}", e);
                 return Err(e.to_string());
             }
         }
@@ -1225,11 +1225,11 @@ pub async fn debug_backend_connection<R: Runtime>(app: AppHandle<R>) -> Result<S
     // Test 1: Check server address from store
     let server_url = match get_server_address(&app).await {
         Ok(url) => {
-            log_debug!("✓ Server URL from store: {}", url);
+            log_debug!("Server URL from store: {}", url);
             url
         }
         Err(e) => {
-            log_error!("✗ Failed to get server URL: {}", e);
+            log_error!("Failed to get server URL: {}", e);
             return Err(format!("Failed to get server URL: {}", e));
         }
     };
@@ -1339,14 +1339,14 @@ pub async fn api_save_custom_openai_config<R: Runtime>(
 
     match SettingsRepository::save_custom_openai_config(pool, &config).await {
         Ok(()) => {
-            log_info!("✅ Successfully saved custom OpenAI config for endpoint: {}", config.endpoint);
+            log_info!("Successfully saved custom OpenAI config for endpoint: {}", config.endpoint);
             Ok(serde_json::json!({
                 "status": "success",
                 "message": "Custom OpenAI configuration saved successfully"
             }))
         }
         Err(e) => {
-            log_error!("❌ Failed to save custom OpenAI config: {}", e);
+            log_error!("Failed to save custom OpenAI config: {}", e);
             Err(format!("Failed to save custom OpenAI configuration: {}", e))
         }
     }
@@ -1365,7 +1365,7 @@ pub async fn api_get_custom_openai_config<R: Runtime>(
     match SettingsRepository::get_custom_openai_config(pool).await {
         Ok(config) => {
             if let Some(ref c) = config {
-                log_info!("✅ Found custom OpenAI config: endpoint='{}', model='{}'",
+                log_info!("Found custom OpenAI config: endpoint='{}', model='{}'",
                     c.endpoint, c.model);
             } else {
                 log_info!("No custom OpenAI config found");
@@ -1373,7 +1373,7 @@ pub async fn api_get_custom_openai_config<R: Runtime>(
             Ok(config)
         }
         Err(e) => {
-            log_error!("❌ Failed to get custom OpenAI config: {}", e);
+            log_error!("Failed to get custom OpenAI config: {}", e);
             Err(format!("Failed to get custom OpenAI configuration: {}", e))
         }
     }
@@ -1476,12 +1476,12 @@ pub async fn api_test_custom_openai_connection<R: Runtime>(
                     }
                 }
             } else {
-                log_warn!("⚠️ Custom OpenAI connection test failed with status {}: {}", status, response_text);
+                log_warn!("Custom OpenAI connection test failed with status {}: {}", status, response_text);
                 Err(format!("Connection failed with status {}: {}", status, response_text))
             }
         }
         Err(e) => {
-            log_error!("❌ Custom OpenAI connection test failed: {}", e);
+            log_error!("Custom OpenAI connection test failed: {}", e);
             if e.is_timeout() {
                 Err("Connection timed out. Please check the endpoint URL.".to_string())
             } else if e.is_connect() {
@@ -1521,7 +1521,7 @@ pub async fn api_test_qwen3_connection(
             let status = response.status();
             // Accepts 200 OK or 404 Not Found (meaning server is up, but root is unmapped)
             if status.is_success() || status == reqwest::StatusCode::NOT_FOUND {
-                log_info!("✅ Qwen3 server is reachable (status: {})", status);
+                log_info!("Qwen3 server is reachable (status: {})", status);
                 Ok(serde_json::json!({
                     "status": "success",
                     "message": format!("Qwen3 server is up. Status: {}", status)
@@ -1533,7 +1533,7 @@ pub async fn api_test_qwen3_connection(
         }
         Err(e) => {
             let error_msg = format!("Cannot connect to Qwen3 server: {}", e);
-            log_error!("❌ {}", error_msg);
+            log_error!("{}", error_msg);
             Err(error_msg)
         }
     }

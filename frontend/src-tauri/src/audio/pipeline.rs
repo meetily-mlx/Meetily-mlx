@@ -236,11 +236,11 @@ impl AudioCapture {
                 "⚠️ SAMPLE RATE MISMATCH DETECTED ⚠️"
             );
             warn!(
-                "🔄 [{:?}] Audio device '{}' ({:?}) reports {} Hz (pipeline expects {} Hz)",
+                "[{:?}] Audio device '{}' ({:?}) reports {} Hz (pipeline expects {} Hz)",
                 device_type, device.name, device_kind, sample_rate, TARGET_SAMPLE_RATE
             );
             warn!(
-                "🔄 Automatic resampling will be applied: {} Hz → {} Hz",
+                "Automatic resampling will be applied: {} Hz → {} Hz",
                 sample_rate, TARGET_SAMPLE_RATE
             );
 
@@ -260,7 +260,7 @@ impl AudioCapture {
             info!("   Resampling strategy: {}", strategy);
         } else {
             info!(
-                "✅ [{:?}] Audio device '{}' ({:?}) uses {} Hz (matches pipeline)",
+                "[{:?}] Audio device '{}' ({:?}) uses {} Hz (matches pipeline)",
                 device_type, device.name, device_kind, sample_rate
             );
         }
@@ -272,16 +272,16 @@ impl AudioCapture {
             let ns = if super::ffmpeg_mixer::RNNOISE_APPLY_ENABLED {
                 match NoiseSuppressionProcessor::new(TARGET_SAMPLE_RATE) {
                     Ok(processor) => {
-                        info!("✅ RNNoise noise suppression ENABLED for microphone '{}' (10-15 dB reduction)", device.name);
+                        info!("RNNoise noise suppression ENABLED for microphone '{}' (10-15 dB reduction)", device.name);
                         Some(processor)
                     }
                     Err(e) => {
-                        warn!("⚠️ Failed to create noise suppressor: {}, continuing without noise suppression", e);
+                        warn!("Failed to create noise suppressor: {}, continuing without noise suppression", e);
                         None
                     }
                 }
             } else {
-                info!("ℹ️ RNNoise noise suppression DISABLED for microphone '{}' (flag: RNNOISE_APPLY_ENABLED=false)", device.name);
+                info!("RNNoise noise suppression DISABLED for microphone '{}' (flag: RNNOISE_APPLY_ENABLED=false)", device.name);
                 info!("   Whisper handles noise well internally - RNNoise is optional");
                 None
             };
@@ -289,14 +289,14 @@ impl AudioCapture {
             // Initialize high-pass filter (removes rumble below 80 Hz)
             let hpf = {
                 let filter = HighPassFilter::new(TARGET_SAMPLE_RATE, 80.0);
-                info!("✅ High-pass filter initialized for microphone '{}' (cutoff: 80 Hz)", device.name);
+                info!("High-pass filter initialized for microphone '{}' (cutoff: 80 Hz)", device.name);
                 Some(filter)
             };
 
             // Initialize EBU R128 normalizer (professional loudness standard)
             let norm = match LoudnessNormalizer::new(1, TARGET_SAMPLE_RATE) {
                 Ok(normalizer) => {
-                    info!("✅ EBU R128 normalizer initialized for microphone '{}' (target: -23 LUFS)", device.name);
+                    info!("EBU R128 normalizer initialized for microphone '{}' (target: -23 LUFS)", device.name);
                     Some(normalizer)
                 }
                 Err(e) => {
@@ -308,7 +308,7 @@ impl AudioCapture {
             (ns, hpf, norm)
         } else {
             // System audio: no enhancement needed
-            info!("ℹ️ System audio '{}' captured raw (no enhancement)", device.name);
+            info!("ℹSystem audio '{}' captured raw (no enhancement)", device.name);
             (None, None, None)
         };
 
@@ -349,13 +349,13 @@ impl AudioCapture {
                 1,    // Mono
             ) {
                 Ok(resampler) => {
-                    info!("✅ Persistent resampler initialized for '{}' ({}Hz → {}Hz, chunk_size={})",
+                    info!("Persistent resampler initialized for '{}' ({}Hz → {}Hz, chunk_size={})",
                           device.name, sample_rate, TARGET_SAMPLE_RATE, RESAMPLER_CHUNK_SIZE);
                     info!("   Buffering enabled for variable-size chunks (e.g., 320, 512, 1024, etc.)");
                     Some(resampler)
                 }
                 Err(e) => {
-                    warn!("⚠️ Failed to create persistent resampler: {}, will use fallback", e);
+                    warn!("Failed to create persistent resampler: {}, will use fallback", e);
                     None
                 }
             }
@@ -491,7 +491,7 @@ impl AudioCapture {
                 };
 
                 info!(
-                    "🔄 [{:?}] Persistent buffered resampler: {}Hz → {}Hz (ratio: {:.2}x)",
+                    "[{:?}] Persistent buffered resampler: {}Hz → {}Hz (ratio: {:.2}x)",
                     self.device_type,
                     self.sample_rate,
                     TARGET_SAMPLE_RATE,
@@ -533,7 +533,7 @@ impl AudioCapture {
                             let buffered = suppressor.buffered_samples();
                             let length_delta = (before_len as i32 - after_len as i32).abs();
 
-                            debug!("🔇 Noise suppression health: in={}, out={}, delta={}, buffered={}, RMS={:.4}",
+                            debug!("Noise suppression health: in={}, out={}, delta={}, buffered={}, RMS={:.4}",
                                    before_len, after_len, length_delta, buffered,
                                    if !mono_data.is_empty() {
                                        (mono_data.iter().map(|&x| x * x).sum::<f32>() / mono_data.len() as f32).sqrt()
@@ -838,7 +838,7 @@ impl AudioPipeline {
                                         let duration_ms = segment.end_timestamp_ms - segment.start_timestamp_ms;
 
                                         if segment.samples.len() >= 800 {  // Minimum 50ms at 16kHz - matches Parakeet capability
-                                            info!("📤 Sending VAD segment: {:.1}ms, {} samples",
+                                            info!("Sending VAD segment: {:.1}ms, {} samples",
                                                   duration_ms, segment.samples.len());
 
                                             let transcription_chunk = AudioChunk {
@@ -855,7 +855,7 @@ impl AudioPipeline {
                                                 self.chunk_id_counter += 1;
                                             }
                                         } else {
-                                            debug!("⏭️ Dropping short VAD segment: {:.1}ms ({} samples < 800)",
+                                            debug!("Dropping short VAD segment: {:.1}ms ({} samples < 800)",
                                                    duration_ms, segment.samples.len());
                                         }
                                     }
@@ -908,7 +908,7 @@ impl AudioPipeline {
 
                     // Send segments >= 50ms (800 samples at 16kHz) - matches main pipeline filter
                     if segment.samples.len() >= 800 {
-                        info!("📤 Sending final VAD segment to Whisper: {:.1}ms duration, {} samples",
+                        info!("Sending final VAD segment to Whisper: {:.1}ms duration, {} samples",
                               duration_ms, segment.samples.len());
 
                         let transcription_chunk = AudioChunk {
@@ -925,7 +925,7 @@ impl AudioPipeline {
                             self.chunk_id_counter += 1;
                         }
                     } else {
-                        info!("⏭️ Skipping short final segment: {:.1}ms ({} samples < 800)",
+                        info!("Skipping short final segment: {:.1}ms ({} samples < 800)",
                               duration_ms, segment.samples.len());
                     }
                 }
@@ -1028,7 +1028,7 @@ impl AudioPipelineManager {
     /// Force immediate flush of accumulated audio and stop pipeline
     /// PERFORMANCE CRITICAL: Eliminates 30+ second shutdown delays
     pub async fn force_flush_and_stop(&mut self) -> Result<()> {
-        info!("🚀 Force flushing pipeline - processing ALL accumulated audio immediately");
+        info!("Force flushing pipeline - processing ALL accumulated audio immediately");
 
         // If we have a sender, send a special flush signal first
         if let Some(sender) = &self.audio_sender {
@@ -1044,7 +1044,7 @@ impl AudioPipelineManager {
             if let Err(e) = sender.send(flush_chunk) {
                 warn!("Failed to send flush signal: {}", e);
             } else {
-                info!("📤 Sent flush signal to pipeline");
+                info!("Sent flush signal to pipeline");
 
                 // PERFORMANCE OPTIMIZATION: Reduced wait time from 50ms to 20ms
                 // Pipeline should process flush signal very quickly
@@ -1063,7 +1063,7 @@ impl AudioPipelineManager {
                     let _ = sender.send(additional_flush);
                 }
 
-                info!("📤 Sent additional flush signals for reliability");
+                info!("Sent additional flush signals for reliability");
                 tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
             }
         }

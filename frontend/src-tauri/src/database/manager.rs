@@ -74,12 +74,12 @@ impl DatabaseManager {
             Ok(db_manager) => {
                 log::info!("Database opened successfully");
                 
-                // ✅ INITIALIZE KV_STORE TABLE
+                // INITIALIZE KV_STORE TABLE
                 if let Err(e) = db_manager.init_kv_store().await {
                     log::warn!("Failed to initialize kv_store: {}", e);
                     // Non-fatal - continue anyway
                 } else {
-                    log::info!("✅ kv_store initialized successfully");
+                    log::info!("kv_store initialized successfully");
                 }
                 
                 Ok(db_manager)
@@ -111,11 +111,11 @@ impl DatabaseManager {
                         Ok(db_manager) => {
                             log::info!("Database opened successfully after WAL recovery");
                             
-                            // ✅ INITIALIZE KV_STORE TABLE (even on retry)
+                            // INITIALIZE KV_STORE TABLE (even on retry)
                             if let Err(e) = db_manager.init_kv_store().await {
                                 log::warn!("Failed to initialize kv_store: {}", e);
                             } else {
-                                log::info!("✅ kv_store initialized successfully");
+                                log::info!("kv_store initialized successfully");
                             }
                             
                             Ok(db_manager)
@@ -225,7 +225,7 @@ impl DatabaseManager {
 
     // Add this function to the DatabaseManager impl block
     pub async fn init_kv_store(&self) -> Result<(), sqlx::Error> {
-        log::info!("📦 Creating kv_store table...");
+        log::info!("Creating kv_store table...");
         
         // Create kv_store table if it doesn't exist
         sqlx::query(
@@ -249,7 +249,7 @@ impl DatabaseManager {
         .execute(self.pool())
         .await?;
 
-        log::info!("✅ kv_store table created successfully");
+        log::info!("kv_store table created successfully");
         Ok(())
     }
 }

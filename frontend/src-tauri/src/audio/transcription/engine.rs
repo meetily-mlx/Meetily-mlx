@@ -60,11 +60,11 @@ async fn get_qwen3_endpoint<R: Runtime>(app: &AppHandle<R>) -> String {
     
     match SettingsRepository::get_setting(pool, "qwen3_endpoint").await {
         Ok(Some(endpoint)) => {
-            info!("📍 Found saved Qwen3 endpoint: {}", endpoint);
+            info!("Found saved Qwen3 endpoint: {}", endpoint);
             endpoint
         }
         _ => {
-            info!("ℹ️ No saved endpoint found, using default");
+            info!("ℹNo saved endpoint found, using default");
             "http://127.0.0.1:8765".to_string()
         }
     }
@@ -81,7 +81,7 @@ async fn get_qwen3_api_key<R: Runtime>(app: &AppHandle<R>) -> String {
             key
         }
         _ => {
-            info!("ℹ️ No saved API key found, using default");
+            info!("ℹNo saved API key found, using default");
             "local-secret-123".to_string()
         }
     }
@@ -99,13 +99,13 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
     {
         Ok(Some(config)) => {
             info!(
-                "📝 Found transcript config - provider: {}, model: {}",
+                "Found transcript config - provider: {}, model: {}",
                 config.provider, config.model
             );
             config
         }
         Ok(None) => {
-            info!("📝 No transcript config found, defaulting to qwen3");
+            info!("No transcript config found, defaulting to qwen3");
             let endpoint = get_qwen3_endpoint(app).await;
             let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
@@ -128,7 +128,7 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         }
     };
 
-    // ✅ FIXED: If qwen3 is selected, validate connection
+    // FIXED: If qwen3 is selected, validate connection
     if config.provider == "qwen3" {
         info!("🚀 Qwen3 selected - validating server connection");
         
@@ -137,8 +137,8 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
             .clone()
             .unwrap_or_else(|| "http://127.0.0.1:8765".to_string());
         
-        info!("🎯 Qwen3 ASR endpoint: {}, using API key: {}", endpoint, api_key);
-        info!("💡 Make sure the server is running: mlx-qwen3-asr serve --api-key {} --port 8765", api_key);
+        info!("Qwen3 ASR endpoint: {}, using API key: {}", endpoint, api_key);
+        info!("Make sure the server is running: mlx-qwen3-asr serve --api-key {} --port 8765", api_key);
         
         let provider = Qwen3RemoteProvider {
             endpoint,
@@ -146,7 +146,7 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
         };
         
         if provider.is_model_loaded().await {
-            info!("✅ Qwen3 server is reachable and ready");
+            info!("Qwen3 server is reachable and ready");
             Ok(())
         } else {
             // ⚠️ Don't fail validation just because the server isn't reachable
@@ -171,20 +171,20 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 // Call the whisper validation command with config support
                 match crate::whisper_engine::commands::whisper_validate_model_ready_with_config(app).await {
                     Ok(model_name) => {
-                        info!("✅ Whisper model validation successful: {} is ready", model_name);
+                        info!("Whisper model validation successful: {} is ready", model_name);
                         Ok(())
                     }
                     Err(e) => {
-                        warn!("❌ Whisper model validation failed: {}", e);
+                        warn!("Whisper model validation failed: {}", e);
                         Err(e)
                     }
                 }
             }
             "parakeet" => {
-                info!("🔍 Validating Parakeet model...");
+                info!("Validating Parakeet model...");
                 // Ensure parakeet engine is initialized first
                 if let Err(init_error) = crate::parakeet_engine::commands::parakeet_init().await {
-                    warn!("❌ Failed to initialize Parakeet engine: {}", init_error);
+                    warn!("Failed to initialize Parakeet engine: {}", init_error);
                     return Err(format!(
                         "Failed to initialize Parakeet speech recognition: {}",
                         init_error
@@ -194,17 +194,17 @@ pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) 
                 // Use the validation command that includes auto-discovery and loading
                 match crate::parakeet_engine::commands::parakeet_validate_model_ready_with_config(app).await {
                     Ok(model_name) => {
-                        info!("✅ Parakeet model validation successful: {} is ready", model_name);
+                        info!("Parakeet model validation successful: {} is ready", model_name);
                         Ok(())
                     }
                     Err(e) => {
-                        warn!("❌ Parakeet model validation failed: {}", e);
+                        warn!("Parakeet model validation failed: {}", e);
                         Err(e)
                     }
                 }
             }
             other => {
-                warn!("❌ Unsupported transcription provider for local recording: {}", other);
+                warn!("Unsupported transcription provider for local recording: {}", other);
                 Err(format!(
                     "Provider '{}' is not supported for local transcription. Please select 'localWhisper', 'parakeet', or 'qwen3'.",
                     other
@@ -228,13 +228,13 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     {
         Ok(Some(config)) => {
             info!(
-                "📝 Transcript config - provider: {}, model: {}",
+                "Transcript config - provider: {}, model: {}",
                 config.provider, config.model
             );
             config
         }
         Ok(None) => {
-            info!("📝 No transcript config found, defaulting to qwen3");
+            info!("No transcript config found, defaulting to qwen3");
             let endpoint = get_qwen3_endpoint(app).await;
             let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
@@ -245,7 +245,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             }
         }
         Err(e) => {
-            warn!("⚠️ Failed to get transcript config: {}, defaulting to qwen3", e);
+            warn!("Failed to get transcript config: {}, defaulting to qwen3", e);
             let endpoint = get_qwen3_endpoint(app).await;
             let api_key = get_qwen3_api_key(app).await;
             crate::api::api::TranscriptConfig {
@@ -257,14 +257,14 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
         }
     };
 
-    // ✅ Make sure Qwen3 is handled FIRST before any other provider
+    // Make sure Qwen3 is handled FIRST before any other provider
     if config.provider == "qwen3" {
-        info!("🎯 Using Qwen3 ASR (selected in settings)");
+        info!("Using Qwen3 ASR (selected in settings)");
         
         // Use API key from config, or get from settings
         let api_key = config.api_key.clone().unwrap_or_else(|| "local-secret-123".to_string());
         
-        // 🔥 FIX: ALWAYS get endpoint from settings, don't rely on config
+        // FIX: ALWAYS get endpoint from settings, don't rely on config
         let state = app.state::<crate::state::AppState>();
         let pool = state.db_manager.pool();
         
@@ -278,7 +278,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                 // Fallback: check if config has endpoint
                 if let Some(endpoint_url) = config.endpoint.clone() {
                     if !endpoint_url.is_empty() {
-                        info!("📍 Using endpoint from config: {}", endpoint_url);
+                        info!("Using endpoint from config: {}", endpoint_url);
                         endpoint_url
                     } else {
                         warn!("⚠️ No endpoint found, using default");
@@ -291,20 +291,20 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             }
         };
         
-        info!("📍 Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
+        info!("Qwen3 endpoint: {}, using API key: {}", endpoint, api_key);
         
-        // ✅ Create the provider with the correct endpoint
+        // Create the provider with the correct endpoint
         let qwen_provider = Arc::new(Qwen3RemoteProvider {
             endpoint: endpoint.clone(),
             api_key: api_key.clone(),
         });
         
-        // ✅ Double-check the server is reachable
+        // Double-check the server is reachable
         if qwen_provider.is_model_loaded().await {
-            info!("✅ Qwen3 server is reachable, returning engine");
+            info!("Qwen3 server is reachable, returning engine");
             return Ok(TranscriptionEngine::Provider(qwen_provider));
         } else {
-            warn!("⚠️ Qwen3 server is not reachable at {}, but continuing anyway", endpoint);
+            warn!("Qwen3 server is not reachable at {}, but continuing anyway", endpoint);
             // Still return the provider - let the actual transcription fail if needed
             return Ok(TranscriptionEngine::Provider(qwen_provider));
         }
@@ -313,7 +313,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
     // Initialize the appropriate engine based on provider (original logic)
     match config.provider.as_str() {
         "parakeet" => {
-            info!("🦜 Initializing Parakeet transcription engine");
+            info!("Initializing Parakeet transcription engine");
 
             // Get Parakeet engine
             let engine = {
@@ -329,7 +329,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
                     if engine.is_model_loaded().await {
                         let model_name = engine.get_current_model().await
                             .unwrap_or_else(|| "unknown".to_string());
-                        info!("✅ Parakeet model '{}' already loaded", model_name);
+                        info!("Parakeet model '{}' already loaded", model_name);
                         Ok(TranscriptionEngine::Parakeet(engine))
                     } else {
                         Err("Parakeet engine initialized but no model loaded. This should not happen after validation.".to_string())
@@ -341,7 +341,7 @@ pub async fn get_or_init_transcription_engine<R: Runtime>(
             }
         }
         "localWhisper" | _ => {
-            info!("🎤 Initializing Whisper transcription engine");
+            info!("Initializing Whisper transcription engine");
             let whisper_engine = get_or_init_whisper(app).await?;
             Ok(TranscriptionEngine::Whisper(whisper_engine))
         }
@@ -379,7 +379,7 @@ pub async fn get_or_init_whisper<R: Runtime>(
             {
                 Ok(Some(config)) => {
                     info!(
-                        "📝 Saved transcript config - provider: {}, model: {}",
+                        "Saved transcript config - provider: {}, model: {}",
                         config.provider, config.model
                     );
                     if config.provider == "localWhisper" && !config.model.is_empty() {
@@ -389,11 +389,11 @@ pub async fn get_or_init_whisper<R: Runtime>(
                     }
                 }
                 Ok(None) => {
-                    info!("📝 No transcript config found in database");
+                    info!("No transcript config found in database");
                     None
                 }
                 Err(e) => {
-                    warn!("⚠️ Failed to get transcript config: {}", e);
+                    warn!("Failed to get transcript config: {}", e);
                     None
                 }
             };
@@ -402,7 +402,7 @@ pub async fn get_or_init_whisper<R: Runtime>(
             if let Some(ref expected_model) = configured_model {
                 if current_model == *expected_model {
                     info!(
-                        "✅ Loaded model '{}' matches saved config, reusing",
+                        "Loaded model '{}' matches saved config, reusing",
                         current_model
                     );
                     return Ok(engine);
@@ -419,13 +419,13 @@ pub async fn get_or_init_whisper<R: Runtime>(
             } else {
                 // No specific config saved, accept currently loaded model
                 info!(
-                    "✅ No specific model configured, using currently loaded model: '{}'",
+                    "No specific model configured, using currently loaded model: '{}'",
                     current_model
                 );
                 return Ok(engine);
             }
         } else {
-            info!("🔄 Whisper engine exists but no model loaded, will load model from config");
+            info!("Whisper engine exists but no model loaded, will load model from config");
         }
     }
 
@@ -520,7 +520,7 @@ pub async fn get_or_init_whisper<R: Runtime>(
                         .load_model(&model_to_load)
                         .await
                         .map_err(|e| format!("Failed to load model '{}': {}", model_to_load, e))?;
-                    info!("✅ Model '{}' loaded successfully", model_to_load);
+                    info!("Model '{}' loaded successfully", model_to_load);
                 }
                 crate::whisper_engine::ModelStatus::Missing => {
                     return Err(format!(
@@ -558,7 +558,7 @@ pub async fn get_or_init_whisper<R: Runtime>(
                     )
                 })?;
                 info!(
-                    "✅ Fallback model '{}' loaded successfully",
+                    "Fallback model '{}' loaded successfully",
                     fallback_model.name
                 );
             } else {

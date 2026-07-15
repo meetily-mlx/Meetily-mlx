@@ -122,7 +122,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
                 .map_err(|e| TranscriptionError::EngineFailed(format!("WAV finalize error: {}", e)))?;
         }
 
-        info!("📤 Qwen3: Created WAV file ({} bytes)", wav_bytes.len());
+        info!("Qwen3: Created WAV file ({} bytes)", wav_bytes.len());
 
         // 2. Build the HTTP Multipart Request
         let client = reqwest::Client::builder()
@@ -141,7 +141,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
         let base_endpoint = self.endpoint.trim_end_matches('/');
         let url = format!("{}/v1/audio/transcriptions", base_endpoint);
 
-        info!("📤 Qwen3 (sync): Sending request to: {}", url);
+        info!("Qwen3 (sync): Sending request to: {}", url);
 
         let response = client
             .post(&url)
@@ -151,7 +151,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .await
             .map_err(|e| {
                 let msg = format!("Request to Qwen3 server failed: {}", e);
-                error!("❌ Qwen3: {}", msg);
+                error!("Qwen3: {}", msg);
 
                 if e.is_connect() {
                     TranscriptionError::EngineFailed(format!(
@@ -168,12 +168,12 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             })?;
 
         let status = response.status();
-        info!("📥 Qwen3: Response status: {}", status);
+        info!("Qwen3: Response status: {}", status);
 
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
             let msg = format!("Qwen3 server error {}: {}", status, error_text);
-            error!("❌ Qwen3: {}", msg);
+            error!("Qwen3: {}", msg);
             return Err(TranscriptionError::EngineFailed(msg));
         }
 
@@ -183,7 +183,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             .await
             .map_err(|e| {
                 let msg = format!("Failed to parse Qwen3 response: {}", e);
-                error!("❌ Qwen3: {}", msg);
+                error!("Qwen3: {}", msg);
                 TranscriptionError::EngineFailed(msg)
             })?;
 
@@ -204,7 +204,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             )));
         };
 
-        info!("✅ Qwen3: Transcription: '{}'", transcribed_text);
+        info!("Qwen3: Transcription: '{}'", transcribed_text);
 
         Ok(TranscriptResult {
             text: transcribed_text,
@@ -232,7 +232,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
                 Ok(response) => {
                     let status = response.status();
                     if status.is_success() || status == 404 || status == 405 || status == 400 {
-                        info!("✅ Qwen3 server reachable at {} (status: {})", url, status);
+                        info!("Qwen3 server reachable at {} (status: {})", url, status);
                         return true;
                     }
                 }
@@ -240,7 +240,7 @@ impl TranscriptionProvider for Qwen3RemoteProvider {
             }
         }
 
-        warn!("❌ Qwen3 server not reachable at {}", self.endpoint);
+        warn!("Qwen3 server not reachable at {}", self.endpoint);
         false
     }
 
@@ -263,7 +263,7 @@ impl Qwen3RemoteProvider {
     ) -> Result<Vec<TranscriptResult>, TranscriptionError> {
         // This is a placeholder - WebSocket implementation requires tokio_tungstenite
         // which needs to be added to Cargo.toml
-        info!("🔌 Qwen3: WebSocket real-time transcription not yet implemented");
+        info!("Qwen3: WebSocket real-time transcription not yet implemented");
         
         // Fallback: process each chunk synchronously
         let mut results = Vec::new();

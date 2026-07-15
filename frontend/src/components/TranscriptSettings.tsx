@@ -53,9 +53,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         if (isLoadingEndpoint) return;
         setIsLoadingEndpoint(true);
         try {
-            console.log('📡 Loading Qwen3 endpoint from backend...');
+            console.log('Loading Qwen3 endpoint from backend...');
             const config = await invoke('api_get_transcript_config') as any;
-            console.log('📡 Backend config:', config);
+            console.log('Backend config:', config);
             
             if (config && config.endpoint) {
                 console.log('✅ Loaded endpoint from backend:', config.endpoint);
@@ -66,14 +66,14 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 // Fallback to localStorage then default
                 const saved = localStorage.getItem('qwen3-endpoint');
                 if (saved) {
-                    console.log('📡 Loaded endpoint from localStorage:', saved);
+                    console.log('Loaded endpoint from localStorage:', saved);
                     setQwenEndpoint(saved);
                 } else {
-                    console.log('📡 Using default endpoint: http://127.0.0.1:8765');
+                    console.log('Using default endpoint: http://127.0.0.1:8765');
                 }
             }
         } catch (error) {
-            console.error('❌ Failed to load Qwen3 endpoint from backend:', error);
+            console.error('Failed to load Qwen3 endpoint from backend:', error);
             // Try localStorage as fallback
             const saved = localStorage.getItem('qwen3-endpoint');
             if (saved) {
@@ -150,10 +150,10 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const debugDatabase = async () => {
         try {
             const result = await invoke('api_debug_database');
-            console.log('🔍 Database debug:', result);
+            console.log('Database debug:', result);
             alert(JSON.stringify(result, null, 2));
         } catch (error) {
-            console.error('❌ Debug failed:', error);
+            console.error('Debug failed:', error);
             alert('Debug failed: ' + error);
         }
     };
@@ -170,7 +170,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     const saveQwen3Config = async () => {
         if (uiProvider === 'qwen3') {
             try {
-                console.log('💾 Saving Qwen3 config to backend:', { 
+                console.log('Saving Qwen3 config to backend:', { 
                     endpoint: qwenEndpoint, 
                     apiKey: apiKey || 'local-secret-123' 
                 });
@@ -182,13 +182,13 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                     endpoint: qwenEndpoint
                 });
                 
-                console.log('✅ Qwen3 config saved successfully');
+                console.log('Qwen3 config saved successfully');
                 // Also save to localStorage as backup
                 localStorage.setItem('qwen3-endpoint', qwenEndpoint);
-                alert('✅ Qwen3 settings saved successfully!');
+                alert('Qwen3 settings saved successfully!');
             } catch (error) {
-                console.error('❌ Failed to save Qwen3 config:', error);
-                alert('❌ Failed to save Qwen3 settings. Check console for details.');
+                console.error('Failed to save Qwen3 config:', error);
+                alert('Failed to save Qwen3 settings. Check console for details.');
             }
         }
     };
@@ -196,7 +196,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     // NEW: Check what endpoint is saved in backend
     const checkSavedEndpoint = async () => {
         try {
-            console.log('🔍 Checking saved endpoint...');
+            console.log('Checking saved endpoint...');
             const config = await invoke('api_get_transcript_config') as any;
             console.log('📡 Current transcript config from backend:', config);
             if (config && config.endpoint) {
@@ -205,7 +205,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                 alert('No endpoint found in backend');
             }
         } catch (error) {
-            console.error('❌ Failed to get config:', error);
+            console.error('Failed to get config:', error);
             alert('Failed to get config from backend');
         }
     };
@@ -215,16 +215,16 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         if (uiProvider !== 'qwen3') return;
         
         try {
-            console.log('🔍 Testing Qwen3 connection to:', qwenEndpoint);
+            console.log('Testing Qwen3 connection to:', qwenEndpoint);
             const result = await invoke('api_test_qwen3_connection', {
                 endpoint: qwenEndpoint,
                 apiKey: apiKey || 'local-secret-123'
             });
-            console.log('✅ Qwen3 connection test successful:', result);
-            alert('✅ Qwen3 server is reachable!');
+            console.log('Qwen3 connection test successful:', result);
+            alert('Qwen3 server is reachable!');
         } catch (error) {
-            console.error('❌ Qwen3 connection test failed:', error);
-            alert(`❌ Cannot connect to Qwen3 server at ${qwenEndpoint}\n\nMake sure the server is running:\nmlx-qwen3-asr serve --api-key ${apiKey || 'local-secret-123'} --port 8765`);
+            console.error('Qwen3 connection test failed:', error);
+            alert(`Cannot connect to Qwen3 server at ${qwenEndpoint}\n\nMake sure the server is running:\nmlx-qwen3-asr serve --api-key ${apiKey || 'local-secret-123'} --port 8765`);
         }
     };
 
@@ -354,7 +354,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 🔌 Test Connection (404 Not Found means connection is working)
                             </Button>
 
-                            {/* ✅ ADDED: Manual Save Button */}
+                            {/* ADDED: Manual Save Button */}
                             <Button
                                 onClick={saveQwen3Config}
                                 className="w-full bg-green-600 hover:bg-green-700 text-white text-sm"
