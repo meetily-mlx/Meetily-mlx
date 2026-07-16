@@ -340,7 +340,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             
                             <div className="bg-blue-100/50 rounded p-3">
                                 <p className="text-xs text-blue-700 mb-2">
-                                    Start the Qwen3 server by typing the following in mac terminal:
+                                    Start the Qwen3 server by typing the following in mac terminal: 
                                 </p>
                                 <code className="block bg-blue-200 px-3 py-2 rounded text-xs font-mono text-blue-900">
                                     mlx-qwen3-asr serve --api-key {apiKey || 'local-secret-123'} --port 8765 --model mlx-community/Qwen3-ASR-0.6B-8bit
@@ -359,7 +359,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 onClick={saveQwen3Config}
                                 className="w-full bg-green-600 hover:bg-green-700 text-white text-sm"
                             >
-                                💾 Save Qwen3 Settings
+                                💾 Save & Use Qwen3  
                             </Button>
 
                             {/* NEW: Check saved endpoint button */}
@@ -367,11 +367,12 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                 onClick={checkSavedEndpoint}
                                 className="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-sm"
                             >
-                                🔍 Check Saved Endpoint
+                                💾 Save Endpoint
                             </Button>
                             
                             <p className="text-xs text-gray-500 text-center mt-1">
-                                Use the Save button to use Qwen3 or API connection
+                                Use the 2 Save buttons above to use Qwen3 or API connection
+                                Use MAC machine IP instead of 127:0.0.1 if using Windows Meetily to connect to MLX Qwen3 server
                             </p>
                         </div>
                     </div>
