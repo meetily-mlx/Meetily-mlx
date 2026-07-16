@@ -364,6 +364,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             
                             <p className="text-xs text-gray-500 text-center mt-1">
                                 Use the save button to use Qwen3 or API connection
+                                Insert Mac IP address as server endpoint if using Qwen3 with Windows Meetily app
                             </p>
                         </div>
                     </div>
