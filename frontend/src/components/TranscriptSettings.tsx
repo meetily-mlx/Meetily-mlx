@@ -361,18 +361,9 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             >
                                 💾 Save & Use Qwen3  
                             </Button>
-
-                            {/* NEW: Check saved endpoint button */}
-                            <Button
-                                onClick={checkSavedEndpoint}
-                                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-sm"
-                            >
-                                💾 Save Endpoint
-                            </Button>
                             
                             <p className="text-xs text-gray-500 text-center mt-1">
-                                Use the 2 Save buttons above to use Qwen3 or API connection
-                                Use MAC machine IP instead of 127:0.0.1 if using Windows Meetily to connect to MLX Qwen3 server
+                                Use the save button to use Qwen3 or API connection
                             </p>
                         </div>
                     </div>
